@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <array>
-#include <type_traits>
 
 template <typename T, size_t Capacity>
 class RingContainer {

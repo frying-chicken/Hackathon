@@ -39,37 +39,23 @@ public:
     void update(Config::Time now = micros()) {
         _prefixSumWindow.push(now, analogRead(PIN));
 
-        int baseline = _prefixSumWindow.average(_lastTime - Config::baseline_micros, _lastTime);
-
-        if (_mode == Mode::Idle) {
-            if (_lastTime + Config::start_detect_micros < now) {
-                bool a = baseline < _prefixSumWindow.average(
-                    now - Config::half_bits_to_micros(Config::start_detect_half_bits),
-                    now - Config::half_bits_to_micros(Config::start_first_low_end_half_bits));
-                bool b = baseline < _prefixSumWindow.average(
-                    now - Config::half_bits_to_micros(Config::start_first_low_end_half_bits),
-                    now - Config::half_bits_to_micros(Config::start_first_high_end_half_bits));
-                bool c = baseline < _prefixSumWindow.average(
-                    now - Config::half_bits_to_micros(Config::start_first_high_end_half_bits),
-                    now - Config::half_bits_to_micros(Config::start_second_low_end_half_bits));
-                bool d = baseline < _prefixSumWindow.average(
-                    now - Config::half_bits_to_micros(Config::start_second_low_end_half_bits),
-                    now);
-
-                if (!a && b && !c && d) {
-                    _mode = Mode::Payload;
-                    _lastTime = now;
-                }
+        switch (_mode) {
+        case Mode::Idle:
+            if (_lastTime + Config::start_detect_micros < now && detectStartPattern(now, baseline)) {
+                _mode = Mode::Payload;
+                _lastTime = now;
             }
-        }
+            return;
 
-        if (_mode == Mode::Payload) {
+        case Mode::Payload:
             if (_lastTime + Config::bit_micros < now) {
-                bool x = baseline < _prefixSumWindow.average(now - Config::bit_micros, now - Config::half_bit_micros);
-                bool y = baseline < _prefixSumWindow.average(now - Config::half_bit_micros, now);
+                bool x = isHigh(now - Config::bit_micros, now - Config::half_bit_micros, baseline);
+                bool y = isHigh(now - Config::half_bit_micros, now, baseline);
 
                 if (x == y) {
                     _mode = Mode::Idle;
+                    _index = 0;
+                    return;
                 }
 
                 write(_data, _index, x);
@@ -84,6 +70,31 @@ public:
     }
 
 private:
+    bool detectStartPattern(Config::Time now, int baseline) const {
+        bool a = isHigh(
+            now - Config::half_bits_to_micros(Config::start_detect_half_bits),
+            now - Config::half_bits_to_micros(Config::start_first_low_end_half_bits),
+            baseline);
+        bool b = isHigh(
+            now - Config::half_bits_to_micros(Config::start_first_low_end_half_bits),
+            now - Config::half_bits_to_micros(Config::start_first_high_end_half_bits),
+            baseline);
+        bool c = isHigh(
+            now - Config::half_bits_to_micros(Config::start_first_high_end_half_bits),
+            now - Config::half_bits_to_micros(Config::start_second_low_end_half_bits),
+            baseline);
+        bool d = isHigh(
+            now - Config::half_bits_to_micros(Config::start_second_low_end_half_bits),
+            now,
+            baseline);
+
+        return !a && b && !c && d;
+    }
+
+    bool isHigh(Config::Time begin, Config::Time end, int baseline) const {
+        return baseline < _prefixSumWindow.average(begin, end);
+    }
+
     template<typename T>
     void write(T& x, size_t index, bool y) {
         bitWrite(x, bit_size<T>() - 1 - index, y);

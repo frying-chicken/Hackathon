@@ -10,9 +10,7 @@ template <typename Key, typename T, size_t Capacity>
 class PrefixSumWindow {
     static constexpr T kMod = std::numeric_limits<T>::max() / 2u;
 
-    using Entry = std::pair<Key, T>;
-
-    RingContainer<Entry, Capacity> _data;
+    RingContainer<std::pair<Key, T>, Capacity> _data;
 
 public:
     void push(Key key, T value) {
@@ -24,7 +22,7 @@ public:
     bool empty() const { return _data.empty(); }
 
     T average(Key begin, Key end) const {
-        if (!has_overlap(begin, end)) {
+        if (!contains_range(begin, end)) {
             return T{};
         }
 
@@ -39,7 +37,7 @@ public:
     }
 
 private:
-    bool has_overlap(Key begin, Key end) const {
+    bool contains_range(Key begin, Key end) const {
         if (_data.empty() || !(begin < end)) {
             return false;
         }

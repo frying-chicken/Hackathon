@@ -6,11 +6,17 @@
 namespace Config {
     using Time = unsigned long;
 
-    constexpr Time half_bit_us = 450UL;
-    constexpr Time bit_us = half_bit_us * 2UL;
+    constexpr uint8_t sender_pin = 2;
+
+    constexpr Time half_bit_micros = 450UL;
+    constexpr Time bit_micros = half_bit_micros * 2UL;
+
+    constexpr Time half_bit_us = half_bit_micros;
+    constexpr Time bit_us = bit_micros;
 
     constexpr size_t startup_payload_count = 100;
     constexpr size_t debug_ring_capacity = 10;
+    constexpr size_t receiver_sample_capacity = 256;
 
     constexpr uint32_t preamble = 0x5555'5555;
     constexpr uint16_t start_pattern = 0b0100'0011'1100'0111;

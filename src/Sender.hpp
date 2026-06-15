@@ -22,7 +22,7 @@ class Sender
 
     Mode _mode;
     bool _halfPhase;
-    int _index;
+    size_t _index;
 
 public:
     Sender() :
@@ -40,30 +40,20 @@ public:
             return;
         }
 
-        if (_mode == Mode::Idle) {
+        switch (_mode) {
+        case Mode::Idle:
             digitalWrite(PIN, LOW);
             return;
-        }
 
-        if (_mode == Mode::Preamble) {
-            write(Config::preamble, _index);
-            if (++_index == bit_size(Config::preamble)()) {
-                _index = 0;
-                _mode = Mode::Start;
-            }
+        case Mode::Preamble:
+            writePattern(Config::preamble, Mode::Start);
             return;
-        }
 
-        if (_mode == Mode::Start) {
-            write(Config::start_pattern, _index);
-            if (++_index == bit_size<decltype(Config::start_pattern)>()) {
-                _index = 0;
-                _mode = Mode::Payload;
-            }
+        case Mode::Start:
+            writePattern(Config::start_pattern, Mode::Payload);
             return;
-        }
 
-        if (_mode == Mode::Payload) {
+        case Mode::Payload:
             if (_buffer.empty()) {
                 _mode = Mode::Idle;
                 digitalWrite(PIN, LOW);
@@ -80,7 +70,6 @@ public:
                 _index = 0;
                 _buffer.pop_front();
             }
-
         }
     }
 
@@ -92,6 +81,15 @@ public:
     }
 private:
     template<typename T>
+    void writePattern(T pattern, Mode nextMode) {
+        write(pattern, _index);
+        if (++_index == bit_size<T>()) {
+            _index = 0;
+            _mode = nextMode;
+        }
+    }
+
+    template<typename T>
     void write(T x, size_t index, bool y = false) {
         bool data = bitRead(x, bit_size<T>() - 1 - index);
         bool bit = data ^ y;
@@ -99,7 +97,7 @@ private:
     }
 
     template<typename T>
-    static constexpr size_t bit_size() {
+    static constexpr size_t bit_size(T) {
         return sizeof(T) * CHAR_BIT;
     }
 };

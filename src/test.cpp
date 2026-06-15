@@ -1,21 +1,22 @@
 #include <Arduino.h>
+#include <cstdint>
 
+#include "Config.hpp"
 #include "Sender.hpp"
-#include "Receiver.hpp"
 
-Sender<2> sender;
-Receiver<A0> receiver([](byte x) {Serial.println(x);});
+Sender<Config::sender_pin> sender;
+//Receiver<A0> receiver([](uint8_t x) {Serial.println(x);});
 
 void setup() {  
     Serial.begin(250000);
     Serial.println(".");
 
     sender(0);
-    for (int i = 0;i < 100;++i) {
+    for (size_t i = 0; i < Config::startup_payload_count; ++i) {
         sender(0);
     }
 
-    RingContainer<byte,10> a;
+    RingContainer<uint8_t, Config::debug_ring_capacity> a;
     a.push_front(1);
     a.push_front(2);
     a.push_front(3);
@@ -25,7 +26,7 @@ void setup() {
 }
 
 void loop() {
-    unsigned long n = micros();
+    Config::Time n = micros();
     sender.update(n);
-    receiver.update(n);
+//    receiver.update(n);
 }

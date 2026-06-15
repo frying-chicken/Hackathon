@@ -1,21 +1,24 @@
 #pragma once
 
 #include <Arduino.h>
+#include <climits>
+#include <cstdint>
 #include "RingContainer.hpp"
 #include "clock.hpp"
-#include "LinkConfig.hpp"
+#include "Config.hpp"
 
 template<pin_size_t PIN>
 class Sender
 {
     enum class Mode {
         Idle,
+        Preamble,
         Start,
         Payload
     };
 
-    RingContainer<byte, 256> _buffer;
-    Clock<LinkConfig::HalfBitMicros> _clock;
+    RingContainer<uint8_t, 256> _buffer;
+    Clock<Config::half_bit_us> _clock;
 
     Mode _mode;
     bool _halfPhase;
@@ -32,7 +35,7 @@ public:
         pinMode(PIN, OUTPUT);
     }
 
-    void update(unsigned long now = micros()) {
+    void update(Config::Time now = micros()) {
         if (!_clock.update(now)) {
             return;
         }
@@ -42,10 +45,18 @@ public:
             return;
         }
 
-        if (_mode == Mode::Start) {
-            digitalWrite(PIN, _index < static_cast<int>(LinkConfig::StartLowBits) ? LOW : HIGH);
+        if (_mode == Mode::Preamble) {
+            write(Config::preamble, _index);
+            if (++_index == bit_size(Config::preamble)()) {
+                _index = 0;
+                _mode = Mode::Start;
+            }
+            return;
+        }
 
-            if (++_index == static_cast<int>(LinkConfig::StartPatternBits)) {
+        if (_mode == Mode::Start) {
+            write(Config::start_pattern, _index);
+            if (++_index == bit_size<decltype(Config::start_pattern)>()) {
                 _index = 0;
                 _mode = Mode::Payload;
             }
@@ -55,31 +66,40 @@ public:
         if (_mode == Mode::Payload) {
             if (_buffer.empty()) {
                 _mode = Mode::Idle;
+                digitalWrite(PIN, LOW);
                 return;
             }
 
-            bool data = bitRead(_buffer.front(), 7 - _index);
-            bool bit = data ^ _halfPhase;
-            digitalWrite(PIN, bit ? LOW : HIGH);
+            write(_buffer.front(), _index, _halfPhase);
 
             _halfPhase = !_halfPhase;
-
             if (_halfPhase) {
                 return;
             }
-
-            if (++_index == 8) {
+            if (++_index == bit_size<uint8_t>()) {
                 _index = 0;
                 _buffer.pop_front();
             }
+
         }
     }
 
-    void operator()(byte x) {
+    void operator()(uint8_t x) {
         if (_mode == Mode::Idle) {
-            _mode = Mode::Start;
+            _mode = Mode::Preamble;
         }
-
         _buffer.push_back(x);
+    }
+private:
+    template<typename T>
+    void write(T x, size_t index, bool y = false) {
+        bool data = bitRead(x, bit_size<T>() - 1 - index);
+        bool bit = data ^ y;
+        digitalWrite(PIN, !bit ? LOW : HIGH);
+    }
+
+    template<typename T>
+    static constexpr size_t bit_size() {
+        return sizeof(T) * CHAR_BIT;
     }
 };

@@ -1,11 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
-#include <climits>
 #include <cstdint>
-#include "RingContainer.hpp"
-#include "clock.hpp"
+#include "Clock.hpp"
 #include "Config.hpp"
+#include "RingContainer.hpp"
 
 template<pin_size_t PIN>
 class Sender
@@ -33,9 +32,10 @@ public:
         _index(0)
     {
         pinMode(PIN, OUTPUT);
+        digitalWrite(PIN, LOW);
     }
 
-    void update(Config::Time now = micros()) {
+    void update(time_t now = micros()) {
         if (!_clock.update(now)) {
             return;
         }
@@ -46,11 +46,15 @@ public:
             return;
 
         case Mode::Preamble:
-            writePattern(Config::preamble, Mode::Start);
+            if (write(Config::preamble)) {
+                _mode = Mode::Start;
+            }
             return;
 
         case Mode::Start:
-            writePattern(Config::start_pattern, Mode::Payload);
+            if (write(Config::start_pattern)) {
+                _mode = Mode::Payload;
+            }
             return;
 
         case Mode::Payload:
@@ -60,7 +64,9 @@ public:
                 return;
             }
 
-            write(_buffer.front(), _index, _halfPhase);
+            bool data = readBit(_buffer.front(), _index);
+            bool bit = data ^ _halfPhase;
+            digitalWrite(PIN, !bit ? LOW : HIGH);
 
             _halfPhase = !_halfPhase;
             if (_halfPhase) {
@@ -81,23 +87,13 @@ public:
     }
 private:
     template<typename T>
-    void writePattern(T pattern, Mode nextMode) {
-        write(pattern, _index);
+    bool write(T pattern) {
+        bool x = readBit(pattern, _index);
+        digitalWrite(PIN, x);
         if (++_index == bit_size<T>()) {
             _index = 0;
-            _mode = nextMode;
+            return true;
         }
-    }
-
-    template<typename T>
-    void write(T x, size_t index, bool y = false) {
-        bool data = bitRead(x, bit_size<T>() - 1 - index);
-        bool bit = data ^ y;
-        digitalWrite(PIN, !bit ? LOW : HIGH);
-    }
-
-    template<typename T>
-    static constexpr size_t bit_size(T) {
-        return sizeof(T) * CHAR_BIT;
+        return false;
     }
 };

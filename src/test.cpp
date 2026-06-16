@@ -2,31 +2,37 @@
 #include <cstdint>
 
 #include "Config.hpp"
+#include "Receiver.hpp"
 #include "Sender.hpp"
 
-Sender<Config::sender_pin> sender;
-//Receiver<A0> receiver([](uint8_t x) {Serial.println(x);});
+void onReceive(uint8_t x) {
+    Serial.println(x);
+}
 
-void setup() {  
+Sender<2> sender;
+Receiver<A0> receiver(onReceive);
+
+uint8_t next_payload = 1;
+time_t last_send = 0;
+
+void setup() {
     Serial.begin(250000);
-    Serial.println(".");
+    // const Config::Time serial_wait_limit = 3000000UL;
+    // Config::Time wait_begin = micros();
+    // while (!Serial && micros() - wait_begin < serial_wait_limit) {
+    // }
 
-    sender(0);
-    for (size_t i = 0; i < Config::startup_payload_count; ++i) {
-        sender(0);
+    // sender.begin();
+    Serial.println("Test");
+
+    for(int i=0;i<100;++i){
+        sender(i);
     }
-
-    RingContainer<uint8_t, Config::debug_ring_capacity> a;
-    a.push_front(1);
-    a.push_front(2);
-    a.push_front(3);
-
-    Serial.println(a.front());
-
 }
 
 void loop() {
-    Config::Time n = micros();
+    time_t n = micros();
+
     sender.update(n);
-//    receiver.update(n);
+    receiver.update(n);
 }

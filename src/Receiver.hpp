@@ -3,9 +3,11 @@
 #include <Arduino.h>
 #include <climits>
 #include <cstdint>
+#include <stdexcept>
 
 #include "PrefixSumWindow.hpp"
 #include "Config.hpp"
+#include "Utility.h"
 
 template<pin_size_t PIN>
 class Receiver
@@ -26,81 +28,73 @@ private:
     uint8_t _data = 0;
     size_t _index = 0;
 
-    PrefixSumWindow<Config::Time, int, Config::receiver_sample_capacity> _prefixSumWindow;
+    PrefixSumWindow<time_us_t, int, 1024> _prefixSumWindow;
 
-    Config::Time _lastTime = 0;
+    time_us_t _lastTime = 0;
 
 public:
     Receiver(Callback callback)
         : _callback(callback)
     {
+        if (_callback == nullptr) {
+            _callback = [](uint8_t) {};
+        }
     }
 
-    void update(Config::Time now = micros()) {
-        _prefixSumWindow.push(now, analogRead(PIN));
+    void update(time_us_t now = micros()) {
+        const int sample = analogRead(PIN);
+        _prefixSumWindow.push(now, sample);
 
         switch (_mode) {
-        case Mode::Idle:
-            if (_lastTime + Config::start_detect_micros < now && detectStartPattern(now, baseline)) {
-                _mode = Mode::Payload;
-                _lastTime = now;
-            }
-            return;
+        case Mode::Idle: {
+            int baseline = average(now - 450 * 14, 450 * 3 * 4);
 
-        case Mode::Payload:
-            if (_lastTime + Config::bit_micros < now) {
-                bool x = isHigh(now - Config::bit_micros, now - Config::half_bit_micros, baseline);
-                bool y = isHigh(now - Config::half_bit_micros, now, baseline);
-
-                if (x == y) {
-                    _mode = Mode::Idle;
-                    _index = 0;
+            for (size_t i = 0;i < bit_size(Config::start_pattern);++i) {
+                if (read(i * Config::half_bit_us, baseline) != readBit(Config::start_pattern, i)) {
                     return;
                 }
-
-                write(_data, _index, x);
-                _lastTime = now;
-
-                if (++_index == bit_size<uint8_t>()) {
-                    _callback(_data);
-                    _index = 0;
-                }
             }
+            _mode = Mode::Payload;
+            _lastTime = now;
+            return;
+        }
+        case Mode::Payload: {
+            if (now < _lastTime + Config::bit_us - 150) {
+                return;
+            }
+
+            if (_lastTime + Config::bit_us + 150 < now) {
+                _mode = Mode::Idle;
+                _index = 0;
+                return;
+            }
+
+            int baseline = average(now - Config::bit_us, 450 * 3 * 4);
+
+            bool first = read(now - Config::half_bit_us, baseline);
+            bool second = read(now, baseline);
+
+            if (first == second) {
+                return;
+            }
+
+            writeBit(_data, _index, first);
+
+            if (++_index == bit_size<uint8_t>()) {
+                _callback(_data);
+                _lastTime = now;
+                _index = 0;
+            }
+        }
         }
     }
 
 private:
-    bool detectStartPattern(Config::Time now, int baseline) const {
-        bool a = isHigh(
-            now - Config::half_bits_to_micros(Config::start_detect_half_bits),
-            now - Config::half_bits_to_micros(Config::start_first_low_end_half_bits),
-            baseline);
-        bool b = isHigh(
-            now - Config::half_bits_to_micros(Config::start_first_low_end_half_bits),
-            now - Config::half_bits_to_micros(Config::start_first_high_end_half_bits),
-            baseline);
-        bool c = isHigh(
-            now - Config::half_bits_to_micros(Config::start_first_high_end_half_bits),
-            now - Config::half_bits_to_micros(Config::start_second_low_end_half_bits),
-            baseline);
-        bool d = isHigh(
-            now - Config::half_bits_to_micros(Config::start_second_low_end_half_bits),
-            now,
-            baseline);
-
-        return !a && b && !c && d;
+    int average(time_us_t end, time_us_t duration) {
+        return _prefixSumWindow.average(end - duration, end);
     }
 
-    bool isHigh(Config::Time begin, Config::Time end, int baseline) const {
-        return baseline < _prefixSumWindow.average(begin, end);
-    }
-
-    template<typename T>
-    void write(T& x, size_t index, bool y) {
-        bitWrite(x, bit_size<T>() - 1 - index, y);
-    }
-    template<typename T>
-    static constexpr size_t bit_size() {
-        return sizeof(T) * CHAR_BIT;
+    bool read(time_us_t end, int baseline) {
+        return baseline < average(end, Config::half_bit_us);
     }
 };

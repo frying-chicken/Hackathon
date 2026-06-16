@@ -8,8 +8,9 @@
 
 template <typename Key, typename T, size_t Capacity>
 class PrefixSumWindow {
-    static constexpr T kMod = std::numeric_limits<T>::max() / 2u;
+    static_assert(0 < Capacity, "PrefixSumWindow Capacity must be greater than zero");
 
+    static constexpr T kMod = std::numeric_limits<T>::max() / 2;
     RingContainer<std::pair<Key, T>, Capacity> _data;
 
 public:
@@ -22,14 +23,14 @@ public:
     bool empty() const { return _data.empty(); }
 
     T average(Key begin, Key end) const {
-        if (!contains_range(begin, end)) {
+        if (_data.empty() || !(begin < end)) {
             return T{};
         }
 
-        const size_t begin_index = lower_bound(0, _data.size(), begin);
-        const size_t end_index = lower_bound(begin_index, _data.size(), end);
+        const size_t begin_index = lower_bound(1, _data.size(), begin);
+        const size_t end_index = upper_bound(begin_index, _data.size(), end);
 
-        if (begin_index == 0 || begin_index == end_index) {
+        if (begin_index == end_index) {
             return T{};
         }
 
@@ -37,13 +38,6 @@ public:
     }
 
 private:
-    bool contains_range(Key begin, Key end) const {
-        if (_data.empty() || !(begin < end)) {
-            return false;
-        }
-        return (_data.front().first < end) && !(_data.back().first < begin);
-    }
-
     static T add_mod(T lhs, T rhs) {
         const T sum = lhs + rhs;
         return kMod <= sum ? sum - kMod : sum;
@@ -57,6 +51,15 @@ private:
         while (begin < end) {
             size_t m = begin + (end - begin) / 2;
             if (_data[m].first < key) { begin = m + 1; }
+            else { end = m; }
+        }
+        return begin;
+    }
+
+    size_t upper_bound(size_t begin, size_t end, Key key) const {
+        while (begin < end) {
+            size_t m = begin + (end - begin) / 2;
+            if (_data[m].first <= key) { begin = m + 1; }
             else { end = m; }
         }
         return begin;

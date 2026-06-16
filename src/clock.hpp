@@ -1,18 +1,19 @@
 #pragma once
 
 #include <Arduino.h>
+#include "Utility.h"
 
-template<unsigned long Interval>
+template<time_t Interval>
 class Clock
 {
-    unsigned long _deadline;
+    time_us_t _deadline;
 
 public:
-    Clock(unsigned long now = micros())
+    Clock(time_us_t now = 0)
         : _deadline(now + Interval) {
     }
 
-    bool update(unsigned long now = micros()) {
+    bool update(time_us_t now = micros()) {
         if (now < _deadline) {
             return false;
         }

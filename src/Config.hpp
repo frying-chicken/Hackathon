@@ -14,7 +14,7 @@ namespace Config {
     //constexpr time_t receiver_sample_micros = 50UL;
     //constexpr int receiver_high_margin = 24;
 
-    constexpr uint32_t preamble = 0x5555'5555;
+    constexpr uint64_t preamble = 0x5555'5555'5555'5555;
     constexpr uint16_t start_pattern = 0b0100'0011'1100'0111;
 
     // constexpr size_t baseline_half_bits = 16;

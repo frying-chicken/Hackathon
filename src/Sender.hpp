@@ -35,7 +35,7 @@ public:
         digitalWrite(PIN, LOW);
     }
 
-    void update(time_t now = micros()) {
+    void update(time_us_t now = micros()) {
         if (!_clock.update(now)) {
             return;
         }
@@ -89,7 +89,7 @@ private:
     template<typename T>
     bool write(T pattern) {
         bool x = readBit(pattern, _index);
-        digitalWrite(PIN, x);
+        digitalWrite(PIN, !x ? LOW : HIGH);
         if (++_index == bit_size<T>()) {
             _index = 0;
             return true;

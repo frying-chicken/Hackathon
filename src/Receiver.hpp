@@ -47,18 +47,22 @@ public:
 
         switch (_mode) {
         case Mode::Idle: {
-            int baseline = average(now - 450 * 14, 450 * 3 * 4);
+            int baseline = average(now - 450 * 16, 450 * 8);
 
+            uint16_t x = 0;
             for (size_t i = 0;i < bit_size(Config::start_pattern);++i) {
-                if (read(i * Config::half_bit_us, baseline) != readBit(Config::start_pattern, i)) {
-                    return;
-                }
+                bool y = read(now - i * Config::half_bit_us, baseline);
+                writeBit(x, i, y);
             }
-            _mode = Mode::Payload;
-            _lastTime = now;
+            Serial.println(x);
+            if (x == Config::start_pattern) {
+                _mode = Mode::Payload;
+                _lastTime = now;
+            }
             return;
         }
         case Mode::Payload: {
+            Serial.println("debug");
             if (now < _lastTime + Config::bit_us - 150) {
                 return;
             }
@@ -69,7 +73,7 @@ public:
                 return;
             }
 
-            int baseline = average(now - Config::bit_us, 450 * 3 * 4);
+            int baseline = average(now - Config::bit_us, 450 * 4);
 
             bool first = read(now - Config::half_bit_us, baseline);
             bool second = read(now, baseline);

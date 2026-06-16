@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include "Utility.h"
 
-template<time_t Interval>
+template<time_us_t Interval>
 class Clock
 {
     time_us_t _deadline;

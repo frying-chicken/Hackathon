@@ -42,7 +42,6 @@ private:
         const T sum = lhs + rhs;
         return kMod <= sum ? sum - kMod : sum;
     }
-
     static T sub_mod(T lhs, T rhs) {
         return lhs >= rhs ? lhs - rhs : lhs + kMod - rhs;
     }
@@ -55,7 +54,6 @@ private:
         }
         return begin;
     }
-
     size_t upper_bound(size_t begin, size_t end, Key key) const {
         while (begin < end) {
             size_t m = begin + (end - begin) / 2;

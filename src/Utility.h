@@ -1,6 +1,7 @@
 #pragma once
 
 #include <climits>
+#include <cstddef>
 
 using time_us_t = unsigned long;
 

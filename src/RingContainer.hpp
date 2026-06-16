@@ -23,11 +23,6 @@ public:
     size_t size() const { return _size; }
     bool empty() const { return _size == 0; }
 
-    void reset() {
-        _front = 0;
-        _size = 0;
-    }
-
     void push_front(T x) {
         _front = decrement(_front);
         _storage[_front] = x;

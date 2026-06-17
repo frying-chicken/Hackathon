@@ -3,27 +3,29 @@
 #include <Arduino.h>
 #include "Utility.h"
 
-template<time_us_t Interval>
-class Clock
-{
-    time_us_t _deadline;
+namespace hack {
+    template<time_us_t Interval>
+    class Clock
+    {
+        time_us_t _deadline;
 
-public:
-    Clock(time_us_t now = 0)
-        : _deadline(now + Interval) {
-    }
-
-    bool update(time_us_t now = micros()) {
-        if (now < _deadline) {
-            return false;
+    public:
+        Clock(time_us_t now = 0)
+            : _deadline(now + Interval) {
         }
 
-        if (now < _deadline + Interval) {
-            _deadline = _deadline + Interval;
+        bool update(time_us_t now = micros()) {
+            if (now < _deadline) {
+                return false;
+            }
+
+            if (now < _deadline + Interval) {
+                _deadline = _deadline + Interval;
+            }
+            else {
+                _deadline = now + Interval;
+            }
+            return true;
         }
-        else {
-            _deadline = now + Interval;
-        }
-        return true;
-    }
-};
+    };
+}

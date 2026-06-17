@@ -2,58 +2,64 @@
 
 #include <array>
 
-template <typename T, size_t Capacity>
-class RingContainer {
-    std::array<T, Capacity> _storage = {};
+namespace hack {
+    template <typename T, size_t Capacity>
+    class RingContainer {
+        static_assert(Capacity > 0, "RingContainer capacity must be greater than zero");
 
-    size_t _front = 0;
-    size_t _size = 0;
+        std::array<T, Capacity> _storage = {};
 
-public:
-    T& operator[](size_t index) { return _storage[offset(index)]; }
-    const T& operator[](size_t index) const { return _storage[offset(index)]; }
+        size_t _front = 0;
+        size_t _size = 0;
 
-    T& front() { return _storage[_front]; }
-    const T& front() const { return _storage[_front]; }
+    public:
+        T& operator[](size_t index) { return _storage[offset(index)]; }
+        const T& operator[](size_t index) const { return _storage[offset(index)]; }
 
-    T& back() { return _storage[offset(_size - 1)]; }
-    const T& back() const { return _storage[offset(_size - 1)]; }
+        T& front() { return _storage[_front]; }
+        const T& front() const { return _storage[_front]; }
 
-    size_t size() const { return _size; }
-    bool empty() const { return _size == 0; }
+        T& back() { return _storage[offset(_size - 1)]; }
+        const T& back() const { return _storage[offset(_size - 1)]; }
 
-    void push_front(T x) {
-        _front = decrement(_front);
-        _storage[_front] = x;
-        if (_size < Capacity) {
-            _size++;
+        size_t size() const { return _size; }
+        bool empty() const { return _size == 0; }
+
+        void reset() { _front = 0;_size = 0; }
+
+        void push_front(T x) {
+            _front = decrement(_front);
+            _storage[_front] = x;
+            if (_size < Capacity) {
+                _size++;
+            }
         }
-    }
-    void push_back(T x) {
-        _storage[offset(_size)] = x;
-        if (_size < Capacity) {
-            _size++;
+        void push_back(T x) {
+            _storage[offset(_size)] = x;
+            if (_size < Capacity) {
+                _size++;
+            }
+            else {
+                _front = increment(_front);
+            }
         }
-        else {
+        void pop_front() {
+            if (_size == 0) {
+                return;
+            }
             _front = increment(_front);
+            _size--;
         }
-    }
-    void pop_front() {
-        if (_size == 0) {
-            return;
+        void pop_back() {
+            if (_size == 0) {
+                return;
+            }
+            _size--;
         }
-        _front = increment(_front);
-        _size--;
-    }
-    void pop_back() {
-        if (_size == 0) {
-            return;
-        }
-        _size--;
-    }
 
-private:
-    constexpr size_t offset(size_t index) const { return _front + index < Capacity ? _front + index : _front + index - Capacity; }
-    static constexpr size_t increment(size_t index) { return ++index == Capacity ? 0 : index; }
-    static constexpr size_t decrement(size_t index) { return index == 0 ? Capacity - 1 : index - 1; }
-};
+    private:
+        constexpr size_t offset(size_t index) const { return _front + index < Capacity ? _front + index : _front + index - Capacity; }
+        static constexpr size_t increment(size_t index) { return ++index == Capacity ? 0 : index; }
+        static constexpr size_t decrement(size_t index) { return index == 0 ? Capacity - 1 : index - 1; }
+    };
+}

@@ -11,12 +11,12 @@ void onReceive(uint8_t x) {
 }
 
 int x = 0;
-time_us_t y;
+hack::time_us_t y;
 
-Sender<2> sender;
-Receiver<A0> receiver(onReceive);
+hack::Sender<2> sender;
+hack::Receiver<A0> receiver(onReceive);
 
-Clock<5'000'000> clock;
+hack::Clock<5'000'000> clock;
 
 void setup() {
     Serial.begin(250000);

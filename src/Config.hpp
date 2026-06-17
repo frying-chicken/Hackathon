@@ -5,7 +5,7 @@
 
 #include "Utility.h"
 
-namespace Config {
+namespace hack::Config {
     constexpr time_us_t half_bit_us = 400;
     constexpr time_us_t bit_us = half_bit_us * 2;
 

@@ -9,127 +9,129 @@
 #include "Config.hpp"
 #include "Utility.h"
 
-template<pin_size_t PIN>
-class Receiver
-{
-    enum class Mode {
-        Idle,
-        Start,
-        Payload
-    };
-
-public:
-    using Callback = void (*)(uint8_t);
-
-private:
-    Callback _callback;
-
-    uint8_t _data = 0;
-    size_t _index = 0;
-
-    Mode _mode = Mode::Idle;
-
-    PrefixSumWindow<time_us_t, int, 1024 * 2> _prefixSumWindow;
-
-    time_us_t _lastTime = 0;
-
-    bool _level = true;
-    time_us_t _bit_us = 0;
-
-public:
-    Receiver(Callback callback)
-        : _callback(callback)
+namespace hack {
+    template<pin_size_t PIN>
+    class Receiver
     {
-        if (_callback == nullptr) {
-            _callback = [](uint8_t) {};
+        enum class Mode {
+            Idle,
+            Start,
+            Payload
+        };
+
+    public:
+        using Callback = void (*)(uint8_t);
+
+    private:
+        Callback _callback;
+
+        uint8_t _data = 0;
+        size_t _index = 0;
+
+        Mode _mode = Mode::Idle;
+
+        PrefixSumWindow<time_us_t, int, 1024 * 2> _prefixSumWindow;
+
+        time_us_t _lastTime = 0;
+
+        bool _level = true;
+        time_us_t _bit_us = 0;
+
+    public:
+        Receiver(Callback callback)
+            : _callback(callback)
+        {
+            if (_callback == nullptr) {
+                _callback = [](uint8_t) {};
+            }
         }
-    }
 
-    void update(time_us_t now = micros()) {
-        const int sample = analogRead(PIN);
-        _prefixSumWindow.push(now, sample);
+        void update(time_us_t now = micros()) {
+            const int sample = analogRead(PIN);
+            _prefixSumWindow.push(now, sample);
 
-        int baseline = _prefixSumWindow.average(now - Config::baseline_us, now);
+            int baseline = _prefixSumWindow.average(now - Config::baseline_us, now);
 
-        switch (_mode) {
-        case Mode::Idle: {
-            bool level = baseline < sample;
+            switch (_mode) {
+            case Mode::Idle: {
+                bool level = baseline < sample;
 
-            if (level == _level) {
+                if (level == _level) {
+                    return;
+                }
+
+                _level = level;
+
+                if (level == true) {
+                    return;
+                }
+
+                if (_lastTime != 0) {
+                    _bit_us += now - _lastTime;
+                }
+                _lastTime = now;
+
+                if (++_index == 16 + 1) {
+                    _index = 0;
+                    _bit_us /= 16;
+
+                    _mode = Mode::Start;
+                }
                 return;
             }
-
-            _level = level;
-
-            if (level == true) {
+            case Mode::Start: {
+                if (read(now, baseline)) {
+                }
+                if (_data == Config::start_pattern) {
+                    _index = 0;
+                    _mode = Mode::Payload;
+                }
                 return;
             }
-
-            if (_lastTime != 0) {
-                _bit_us += now - _lastTime;
+            case Mode::Payload: {
+                if (read(now, baseline)) {
+                    _callback(_data);
+                }
+                return;
             }
-            _lastTime = now;
+            }
+        }
 
-            if (++_index == 16 + 1) {
+    private:
+        bool read(time_us_t now, int baseline) {
+            if (now < _lastTime + _bit_us - 50) {
+                return false;
+            }
+
+            if (_lastTime + _bit_us + 50 < now) {
+                changeIdle();
                 _index = 0;
-                _bit_us /= 16;
+                return false;
+            }
 
-                _mode = Mode::Start;
+            bool first = baseline < _prefixSumWindow.average(now - _bit_us + 200, now - _bit_us / 2);
+            bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - 200);
+
+            if (first == second) {
+                return false;
             }
-            return;
-        }
-        case Mode::Start: {
-            if (read(now, baseline)) {
-            }
-            if (_data == Config::start_pattern) {
+
+            _data = (_data << 1) | (!first ? 0 : 1);
+            _lastTime += _bit_us;
+
+            if (++_index == bit_size(_data)) {
                 _index = 0;
-                _mode = Mode::Payload;
+                return true;
             }
-            return;
-        }
-        case Mode::Payload: {
-            if (read(now, baseline)) {
-                _callback(_data);
-            }
-            return;
-        }
-        }
-    }
-
-private:
-    bool read(time_us_t now, int baseline) {
-        if (now < _lastTime + _bit_us - 50) {
             return false;
         }
 
-        if (_lastTime + _bit_us + 50 < now) {
-            changeIdle();
+        void changeIdle() {
+            _mode = Mode::Idle;
+            _data = 0;
             _index = 0;
-            return false;
+            _lastTime = 0;
+            _bit_us = 0;
         }
-
-        bool first = baseline < _prefixSumWindow.average(now - _bit_us + 200, now - _bit_us / 2);
-        bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - 200);
-
-        if (first == second) {
-            return false;
-        }
-
-        _data = (_data << 1) | (!first ? 0 : 1);
-        _lastTime += _bit_us;
-
-        if (++_index == bit_size(_data)) {
-            _index = 0;
-            return true;
-        }
-        return false;
-    }
-
-    void changeIdle() {
-        _mode = Mode::Idle;
-        _data = 0;
-        _index = 0;
-        _lastTime = 0;
-        _bit_us = 0;
-    }
-};
+    };
+}

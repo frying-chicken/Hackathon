@@ -3,7 +3,7 @@
 #include <Arduino.h>
 #include <climits>
 #include <cstdint>
-#include <stdexcept>
+#include <optional>
 
 #include "PrefixSumWindow.hpp"
 #include "Config.hpp"
@@ -14,6 +14,7 @@ class Receiver
 {
     enum class Mode {
         Idle,
+        Start,
         Payload
     };
 
@@ -23,14 +24,17 @@ public:
 private:
     Callback _callback;
 
-    Mode _mode = Mode::Idle;
-
     uint8_t _data = 0;
     size_t _index = 0;
 
-    PrefixSumWindow<time_us_t, int, 1024> _prefixSumWindow;
+    Mode _mode = Mode::Idle;
+
+    PrefixSumWindow<time_us_t, int, 1024 * 2> _prefixSumWindow;
 
     time_us_t _lastTime = 0;
+
+    bool _level = true;
+    time_us_t _bit_us = 0;
 
 public:
     Receiver(Callback callback)
@@ -45,60 +49,87 @@ public:
         const int sample = analogRead(PIN);
         _prefixSumWindow.push(now, sample);
 
+        int baseline = _prefixSumWindow.average(now - Config::baseline_us, now);
+
         switch (_mode) {
         case Mode::Idle: {
-            int baseline = average(now - 450 * 16, 450 * 8);
+            bool level = baseline < sample;
 
-            uint16_t x = 0;
-            for (size_t i = 0;i < bit_size(Config::start_pattern);++i) {
-                bool y = read(now - i * Config::half_bit_us, baseline);
-                writeBit(x, i, y);
+            if (level == _level) {
+                return;
             }
-            Serial.println(x);
-            if (x == Config::start_pattern) {
+
+            _level = level;
+
+            if (level == true) {
+                return;
+            }
+
+            if (_lastTime != 0) {
+                _bit_us += now - _lastTime;
+            }
+            _lastTime = now;
+
+            if (++_index == 16 + 1) {
+                _index = 0;
+                _bit_us /= 16;
+
+                _mode = Mode::Start;
+            }
+            return;
+        }
+        case Mode::Start: {
+            if (read(now, baseline)) {
+            }
+            if (_data == Config::start_pattern) {
+                _index = 0;
                 _mode = Mode::Payload;
-                _lastTime = now;
             }
             return;
         }
         case Mode::Payload: {
-            Serial.println("debug");
-            if (now < _lastTime + Config::bit_us - 150) {
-                return;
-            }
-
-            if (_lastTime + Config::bit_us + 150 < now) {
-                _mode = Mode::Idle;
-                _index = 0;
-                return;
-            }
-
-            int baseline = average(now - Config::bit_us, 450 * 4);
-
-            bool first = read(now - Config::half_bit_us, baseline);
-            bool second = read(now, baseline);
-
-            if (first == second) {
-                return;
-            }
-
-            writeBit(_data, _index, first);
-
-            if (++_index == bit_size<uint8_t>()) {
+            if (read(now, baseline)) {
                 _callback(_data);
-                _lastTime = now;
-                _index = 0;
             }
+            return;
         }
         }
     }
 
 private:
-    int average(time_us_t end, time_us_t duration) {
-        return _prefixSumWindow.average(end - duration, end);
+    bool read(time_us_t now, int baseline) {
+        if (now < _lastTime + _bit_us - 50) {
+            return false;
+        }
+
+        if (_lastTime + _bit_us + 50 < now) {
+            changeIdle();
+            _index = 0;
+            return false;
+        }
+
+        bool first = baseline < _prefixSumWindow.average(now - _bit_us + 200, now - _bit_us / 2);
+        bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - 200);
+
+        if (first == second) {
+            return false;
+        }
+
+        _data = (_data << 1) | (!first ? 0 : 1);
+        _lastTime += _bit_us;
+
+        if (++_index == bit_size(_data)) {
+            _index = 0;
+            return true;
+        }
+        return false;
     }
 
-    bool read(time_us_t end, int baseline) {
-        return baseline < average(end, Config::half_bit_us);
+    void changeIdle() {
+        _mode = Mode::Idle;
+        _data = 0;
+        _index = 0;
+        _lastTime = 0;
+        _bit_us = 0;
     }
 };

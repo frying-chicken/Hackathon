@@ -48,12 +48,14 @@ public:
         case Mode::Preamble:
             if (write(Config::preamble)) {
                 _mode = Mode::Start;
+                //Serial.println("\ns");
             }
             return;
 
         case Mode::Start:
             if (write(Config::start_pattern)) {
                 _mode = Mode::Payload;
+                //Serial.println("\np");
             }
             return;
 
@@ -64,16 +66,7 @@ public:
                 return;
             }
 
-            bool data = readBit(_buffer.front(), _index);
-            bool bit = data ^ _halfPhase;
-            digitalWrite(PIN, !bit ? LOW : HIGH);
-
-            _halfPhase = !_halfPhase;
-            if (_halfPhase) {
-                return;
-            }
-            if (++_index == bit_size<uint8_t>()) {
-                _index = 0;
+            if (write(_buffer.front())) {
                 _buffer.pop_front();
             }
         }
@@ -87,10 +80,17 @@ public:
     }
 private:
     template<typename T>
-    bool write(T pattern) {
-        bool x = readBit(pattern, _index);
-        digitalWrite(PIN, !x ? LOW : HIGH);
-        if (++_index == bit_size<T>()) {
+    bool write(T x) {
+        bool data = readBit(x, _index);
+        bool bit = data ^ _halfPhase;
+        digitalWrite(PIN, !bit ? LOW : HIGH);
+
+        _halfPhase = !_halfPhase;
+        if (_halfPhase) {
+            return false;
+        }
+
+        if (++_index == bit_size(x)) {
             _index = 0;
             return true;
         }

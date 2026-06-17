@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <limits>
 #include <utility>
 
@@ -28,7 +27,7 @@ public:
         }
 
         const size_t begin_index = lower_bound(1, _data.size(), begin);
-        const size_t end_index = upper_bound(begin_index, _data.size(), end);
+        const size_t end_index = lower_bound(begin_index, _data.size(), end);
 
         if (begin_index == end_index) {
             return T{};
@@ -49,7 +48,7 @@ private:
     size_t lower_bound(size_t begin, size_t end, Key key) const {
         while (begin < end) {
             size_t m = begin + (end - begin) / 2;
-            if (_data[m].first < key) { begin = m + 1; }
+            if (_data[m].first <= key) { begin = m + 1; }
             else { end = m; }
         }
         return begin;

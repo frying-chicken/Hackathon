@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <cstdint>
 
 #include "Config.hpp"
 #include "Receiver.hpp"
@@ -11,31 +10,31 @@ void onReceive(uint8_t x) {
     Serial.println(x);
 }
 
+int x = 0;
+time_us_t y;
+
 Sender<2> sender;
 Receiver<A0> receiver(onReceive);
 
-Clock<500'000> clock;
-
-uint8_t next_payload = 1;
-time_t last_send = 0;
+Clock<5'000'000> clock;
 
 void setup() {
     Serial.begin(250000);
 
+    clock.update();
     Serial.println("Test");
-
-    for(int i=0;i<100;++i){
-        sender(i);
-    }
 }
 
 void loop() {
-    time_t n = micros();
-
-    if(clock.update(n)){
-        sender(1);
+    if (clock.update()) {
+        sender(x);
+        sender(255 - x);
+        Serial.print("in:");
+        Serial.print(x);
+        Serial.println(255 - x);
+        x++;
     }
 
-    sender.update(n);
-    receiver.update(n);
+    sender.update();
+    receiver.update();
 }

@@ -24,6 +24,8 @@ namespace hack {
 
         size_t size() const { return _size; }
         bool empty() const { return _size == 0; }
+        bool full() const { return _size == Capacity; }
+        static constexpr size_t capacity() { return Capacity; }
 
         void reset() { _front = 0;_size = 0; }
 

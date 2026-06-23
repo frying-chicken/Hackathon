@@ -7,10 +7,11 @@ namespace hack {
     template<time_us_t Interval>
     class Clock
     {
+        static_assert(0 < Interval, "x");
         time_us_t _deadline;
 
     public:
-        Clock(time_us_t now = 0)
+        Clock(time_us_t now = micros())
             : _deadline(now + Interval) {
         }
 
@@ -19,8 +20,9 @@ namespace hack {
                 return false;
             }
 
-            if (now < _deadline + Interval) {
-                _deadline = _deadline + Interval;
+            // now < _deadline + Interval
+            if (now - Interval < _deadline) {
+                _deadline += Interval;
             }
             else {
                 _deadline = now + Interval;

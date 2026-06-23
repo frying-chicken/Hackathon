@@ -21,6 +21,7 @@ namespace hack {
 
         size_t size() const { return _data.size(); }
         bool empty() const { return _data.empty(); }
+        void reset() { _data.reset(); }
 
         T average(Key begin, Key end) const {
             if (_data.empty() || !(begin < end)) {

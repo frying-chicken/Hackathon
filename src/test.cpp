@@ -10,8 +10,7 @@ void onReceive(uint8_t x) {
     Serial.println(x);
 }
 
-int x = 0;
-hack::time_us_t y;
+uint8_t value = 0;
 
 hack::Sender<2> sender;
 hack::Receiver<A0> receiver(onReceive);
@@ -27,12 +26,14 @@ void setup() {
 
 void loop() {
     if (clock.update()) {
-        sender(x);
-        sender(255 - x);
+        const uint8_t inverse = static_cast<uint8_t>(UINT8_MAX - value);
+        sender(value);
+        sender(inverse);
         Serial.print("in:");
-        Serial.print(x);
-        Serial.println(255 - x);
-        x++;
+        Serial.print(value);
+        Serial.print(',');
+        Serial.println(inverse);
+        ++value;
     }
 
     sender.update();

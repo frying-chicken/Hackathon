@@ -71,11 +71,16 @@ namespace hack {
             }
         }
 
-        void operator()(uint8_t x) {
+        bool operator()(uint8_t x) {
+            if (_buffer.full()) {
+                return false;
+            }
+
             if (_mode == Mode::Idle) {
                 _mode = Mode::Preamble;
             }
             _buffer.push_back(x);
+            return true;
         }
     private:
         template<typename T>

@@ -2,13 +2,14 @@
 
 #include <limits>
 #include <utility>
+#include <cstddef>
 
 #include "RingContainer.hpp"
 
 namespace hack {
     template <typename Key, typename T, size_t Capacity>
     class PrefixSumWindow {
-        static_assert(0 < Capacity, "PrefixSumWindow Capacity must be greater than zero");
+        static_assert(0 < Capacity);
 
         static constexpr T kMod = std::numeric_limits<T>::max() / 2;
         RingContainer<std::pair<Key, T>, Capacity> _data;

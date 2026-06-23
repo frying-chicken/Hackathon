@@ -5,7 +5,7 @@
 namespace hack {
     template <typename T, size_t Capacity>
     class RingContainer {
-        static_assert(Capacity > 0, "RingContainer capacity must be greater than zero");
+        static_assert(Capacity > 0);
 
         std::array<T, Capacity> _storage = {};
 
@@ -29,34 +29,38 @@ namespace hack {
 
         void reset() { _front = 0;_size = 0; }
 
-        void push_front(T x) {
+        bool push_front(T x) {
             _front = decrement(_front);
             _storage[_front] = x;
             if (_size < Capacity) {
                 _size++;
+                return true;
             }
+            return false;
         }
-        void push_back(T x) {
+        bool push_back(T x) {
             _storage[offset(_size)] = x;
             if (_size < Capacity) {
                 _size++;
+                return true;
             }
-            else {
-                _front = increment(_front);
-            }
+            _front = increment(_front);
+            return false;
         }
-        void pop_front() {
+        bool pop_front() {
             if (_size == 0) {
-                return;
+                return false;
             }
             _front = increment(_front);
             _size--;
+            return true;
         }
-        void pop_back() {
+        bool pop_back() {
             if (_size == 0) {
-                return;
+                return false;
             }
             _size--;
+            return true;
         }
 
     private:

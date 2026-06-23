@@ -7,7 +7,7 @@ namespace hack {
     template<time_us_t Interval>
     class Clock
     {
-        static_assert(0 < Interval, "x");
+        static_assert(0 < Interval);
         time_us_t _deadline;
 
     public:

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <concepts>
 
 namespace hack {
     template <typename T, size_t Capacity>

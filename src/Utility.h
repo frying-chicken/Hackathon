@@ -6,6 +6,7 @@
 
 namespace hack {
     using time_us_t = unsigned long;
+    using size_t = std::size_t;
 
     template<typename T>
     constexpr size_t bit_size(const T&) {
@@ -13,7 +14,7 @@ namespace hack {
     }
 
     template<typename T>
-    constexpr bool readBit(T x, size_t index) {
+    constexpr bool readBit(const T& x, size_t index) {
         return bitRead(x, bit_size(x) - 1 - index);
     }
 }

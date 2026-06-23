@@ -5,17 +5,18 @@
 #include <cstddef>
 
 #include "RingContainer.hpp"
+#include "Utility.h"
 
 namespace hack {
-    template <typename Key, typename T, size_t Capacity>
+    template <size_t Capacity>
     class PrefixSumWindow {
         static_assert(0 < Capacity);
 
-        static constexpr T kMod = std::numeric_limits<T>::max() / 2;
-        RingContainer<std::pair<Key, T>, Capacity> _data;
+        static constexpr uint32_t kMod = std::numeric_limits<T>::max() / 2;
+        RingContainer<std::pair<time_us_t, uint32_t>, Capacity> _data;
 
     public:
-        void push(Key key, T value) {
+        void push(time_us_t key, uint32_tvalue) {
             const T previous = _data.empty() ? T{} : _data.back().second;
             _data.push_back({ key, add_mod(previous, value) });
         }

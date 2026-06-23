@@ -20,9 +20,8 @@ namespace hack {
                 return false;
             }
 
-            // now < _deadline + Interval
-            if (now - Interval < _deadline) {
-                _deadline += Interval;
+            if (now < _deadline + Interval) {
+                _deadline = _deadline + Interval;
             }
             else {
                 _deadline = now + Interval;

@@ -5,7 +5,7 @@
 #include <cstddef>
 
 namespace hack {
-    using time_us_t = unsigned long;
+    using time_t = unsigned long;
     using size_t = std::size_t;
 
     template<typename T>

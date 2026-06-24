@@ -2,31 +2,42 @@
 
 #include <limits>
 #include <utility>
-#include <cstddef>
+#include <type_traits>
 
+#include "Utility.hpp"
 #include "RingContainer.hpp"
-#include "Utility.h"
 
 namespace hack {
-    template <size_t Capacity>
+    template <typename Key, typename T, size_t Capacity>
     class PrefixSumWindow {
+        static_assert(std::is_unsigned_v<T>);
         static_assert(0 < Capacity);
 
-        static constexpr uint32_t kMod = std::numeric_limits<T>::max() / 2;
-        RingContainer<std::pair<time_us_t, uint32_t>, Capacity> _data;
+        RingContainer<std::pair<Key, T>, Capacity + 1> _data;
 
     public:
-        void push(time_us_t key, uint32_tvalue) {
-            const T previous = _data.empty() ? T{} : _data.back().second;
-            _data.push_back({ key, add_mod(previous, value) });
+        PrefixSumWindow() { reset(); }
+
+        constexpr size_t size() const { return _data.size() - 1; }
+        constexpr bool empty() const { return size() == 0; }
+        constexpr bool full() const { return size() == Capacity; }
+        static constexpr size_t capacity() { return Capacity; }
+
+        void reset() {
+            _data.reset();
+            _data.push_back({ std::numeric_limits<Key>::lowest(), T{} });
         }
 
-        size_t size() const { return _data.size(); }
-        bool empty() const { return _data.empty(); }
-        void reset() { _data.reset(); }
+        bool push(Key key, T value) {
+            if (!(_data.back().first <= key)) {
+                return false;
+            }
+            _data.push_back({ key, _data.back().second + value });
+            return true;
+        }
 
         T average(Key begin, Key end) const {
-            if (_data.empty() || !(begin < end)) {
+            if (empty() || !(begin < end)) {
                 return T{};
             }
 
@@ -37,18 +48,10 @@ namespace hack {
                 return T{};
             }
 
-            return sub_mod(_data[end_index - 1].second, _data[begin_index - 1].second) / (end_index - begin_index);
+            return (_data[end_index - 1].second - _data[begin_index - 1].second) / (end_index - begin_index);
         }
 
     private:
-        static T add_mod(T lhs, T rhs) {
-            const T sum = lhs + rhs;
-            return kMod <= sum ? sum - kMod : sum;
-        }
-        static T sub_mod(T lhs, T rhs) {
-            return lhs >= rhs ? lhs - rhs : lhs + kMod - rhs;
-        }
-
         size_t lower_bound(size_t begin, size_t end, Key key) const {
             while (begin < end) {
                 size_t m = begin + (end - begin) / 2;

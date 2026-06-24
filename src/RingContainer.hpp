@@ -1,12 +1,15 @@
 #pragma once
 
 #include <array>
-#include <concepts>
+#include <type_traits>
+
+#include "Utility.hpp"
 
 namespace hack {
     template <typename T, size_t Capacity>
     class RingContainer {
-        static_assert(Capacity > 0);
+        static_assert(std::is_default_constructible_v<T>);
+        static_assert(0 < Capacity);
 
         std::array<T, Capacity> _storage = {};
 
@@ -48,24 +51,23 @@ namespace hack {
             _front = increment(_front);
             return false;
         }
-        bool pop_front() {
-            if (_size == 0) {
-                return false;
-            }
+        void pop_front() {
+            if (_size == 0) return;
             _front = increment(_front);
             _size--;
-            return true;
+            return;
         }
-        bool pop_back() {
-            if (_size == 0) {
-                return false;
-            }
+        void pop_back() {
+            if (_size == 0) return;
             _size--;
-            return true;
+            return;
         }
 
     private:
-        constexpr size_t offset(size_t index) const { return _front + index < Capacity ? _front + index : _front + index - Capacity; }
+        constexpr size_t offset(size_t index) const {
+            size_t sum = _front + index;
+            return sum < Capacity ? sum : sum - Capacity;
+        }
         static constexpr size_t increment(size_t index) { return ++index == Capacity ? 0 : index; }
         static constexpr size_t decrement(size_t index) { return index == 0 ? Capacity - 1 : index - 1; }
     };

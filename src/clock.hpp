@@ -1,27 +1,28 @@
 #pragma once
 
 #include <Arduino.h>
-#include "Utility.h"
+#include "Utility.hpp"
 
 namespace hack {
-    template<time_us_t Interval>
+    template<time_t Interval>
     class Clock
     {
         static_assert(0 < Interval);
-        time_us_t _deadline;
+        time_t _deadline;
 
     public:
-        Clock(time_us_t now = micros())
+        Clock(time_t now = micros())
             : _deadline(now + Interval) {
         }
 
-        bool update(time_us_t now = micros()) {
+        bool update(time_t now = micros()) {
             if (now < _deadline) {
                 return false;
             }
 
-            if (now < _deadline + Interval) {
-                _deadline = _deadline + Interval;
+            time_t nextDeadline = _deadline + Interval;
+            if (now < nextDeadline) {
+                _deadline = nextDeadline;
             }
             else {
                 _deadline = now + Interval;

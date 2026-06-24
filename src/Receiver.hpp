@@ -3,14 +3,14 @@
 #include <Arduino.h>
 #include <climits>
 #include <cstdint>
-#include <optional>
+#include <type_traits>
 
 #include "PrefixSumWindow.hpp"
 #include "Config.hpp"
-#include "Utility.h"
+#include "Utility.hpp"
 
 namespace hack {
-    template<pin_size_t PIN>
+    template<pin_size_t PIN, typename T>
     class Receiver
     {
         enum class Mode {
@@ -20,33 +20,33 @@ namespace hack {
         };
 
     public:
-        using Callback = void (*)(uint8_t);
+        using Callback = void (*)(T);
 
     private:
         Callback _callback;
 
-        uint8_t _data = 0;
+        T _data = 0;
         size_t _index = 0;
 
         Mode _mode = Mode::Idle;
 
-        PrefixSumWindow<time_us_t, int, 1024 * 2> _prefixSumWindow;
+        PrefixSumWindow<time_t, std::make_unsigned_t<T>, 1024 * 2> _prefixSumWindow;
 
-        time_us_t _lastTime = 0;
+        time_t _lastTime = 0;
 
         bool _level = true;
-        time_us_t _bit_us = 0;
+        time_t _bit_us = 0;
 
     public:
         Receiver(Callback callback)
             : _callback(callback)
         {
             if (_callback == nullptr) {
-                _callback = [](uint8_t) {};
+                _callback = [](T) {};
             }
         }
 
-        void update(time_us_t now = micros()) {
+        void update(time_t now = micros()) {
             const int sample = analogRead(PIN);
             _prefixSumWindow.push(now, sample);
 
@@ -59,7 +59,6 @@ namespace hack {
                 if (level == _level) {
                     return;
                 }
-
                 _level = level;
 
                 if (level == true) {
@@ -80,7 +79,8 @@ namespace hack {
                 return;
             }
             case Mode::Start: {
-                if (read(now, baseline)) {
+                if(read(now, baseline)){
+                    //Serial.println(_data);
                 }
                 if (_data == Config::start_pattern) {
                     _index = 0;
@@ -98,12 +98,12 @@ namespace hack {
         }
 
     private:
-        bool read(time_us_t now, int baseline) {
-            if (now < _lastTime + _bit_us - 50) {
+        bool read(time_t now, int baseline) {
+            if (now < _lastTime + _bit_us - 100) {
                 return false;
             }
 
-            if (_lastTime + _bit_us + 50 < now) {
+            if (_lastTime + _bit_us + 100 < now) {
                 changeIdle();
                 _index = 0;
                 return false;
@@ -116,7 +116,7 @@ namespace hack {
                 return false;
             }
 
-            _data = (_data << 1) | (!first ? 0 : 1);
+            _data = (_data << 1) | (first ? 0 : 1);
             _lastTime += _bit_us;
 
             if (++_index == bit_size(_data)) {

@@ -12,8 +12,8 @@ void onReceive(uint8_t x) {
 
 uint8_t value = 0;
 
-hack::Sender<2> sender;
-hack::Receiver<A0> receiver(onReceive);
+hack::Sender<2, uint8_t> sender;
+hack::Receiver<A0, uint8_t> receiver(onReceive);
 
 hack::Clock<5'000'000> clock;
 

@@ -44,6 +44,10 @@ namespace hack {
             const size_t begin_index = lower_bound(1, _data.size(), begin);
             const size_t end_index = lower_bound(begin_index, _data.size(), end);
 
+            if(begin_index == 1){
+                Serial.println("XXX");
+            }
+
             if (begin_index == end_index) {
                 return T{};
             }

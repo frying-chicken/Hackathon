@@ -1,16 +1,14 @@
 #pragma once
 
 #include <Arduino.h>
-#include <climits>
 #include <cstdint>
-#include <type_traits>
 
-#include "PrefixSumWindow.hpp"
 #include "Config.hpp"
+#include "PrefixSumWindow.hpp"
 #include "Utility.hpp"
 
 namespace hack {
-    template<pin_size_t PIN, typename T>
+    template<pin_size_t PIN, typename T = uint8_t>
     class Receiver
     {
         enum class Mode {
@@ -24,6 +22,8 @@ namespace hack {
 
     private:
         Callback _callback;
+
+        uint16_t _start_pattern = 0;
 
         T _data = 0;
         size_t _index = 0;
@@ -56,31 +56,45 @@ namespace hack {
             case Mode::Idle: {
                 bool level = baseline < sample;
 
-                if (level == _level) {
-                    return;
-                }
+                if (level == _level) { return; }
+
+                
+
+
+
+
                 _level = level;
 
-                if (level == true) {
+                if (level) { return; }
+
+                if (_lastTime == 0) {
+                    _lastTime = now;
                     return;
                 }
 
-                if (_lastTime != 0) {
-                    _bit_us += now - _lastTime;
+                time_t duration = now - _lastTime;
+                if (!(Config::bit_us - Config::margin <= duration && duration <= Config::bit_us + Config::margin)) {
+                    _lastTime = now;
+                    _bit_us = 0;
+                    _index = 0;
+                    return;
                 }
+
+                _bit_us += duration;
                 _lastTime = now;
 
-                if (++_index == 32 + 1) {
+                if (++_index == 16 + 1) {
                     _index = 0;
-                    _bit_us /= 32;
+                    _bit_us /= 16;
 
+                    _data = 0;
                     _mode = Mode::Start;
                 }
                 return;
             }
             case Mode::Start: {
                 if (read(now, baseline)) {
-                    //Serial.println(_data);
+                    Serial.println(_data);
                 }
                 if (_data == Config::start_pattern) {
                     _index = 0;
@@ -99,18 +113,23 @@ namespace hack {
 
     private:
         bool read(time_t now, int baseline) {
-            if (now < _lastTime + _bit_us - 100) {
+            if (now < _lastTime + _bit_us - Config::margin) {
                 return false;
             }
 
-            if (_lastTime + _bit_us + 100 < now) {
-                changeIdle();
+            if (_lastTime + _bit_us + Config::margin < now) {
+
                 _index = 0;
+                _bit_us = 0;
+                _lastTime = 0;
+                _data = 0;
+
+                _mode = Mode::Idle;
                 return false;
             }
 
-            bool first = baseline < _prefixSumWindow.average(now - _bit_us + 50, now - _bit_us / 2);
-            bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - 50);
+            bool first = baseline < _prefixSumWindow.average(now - _bit_us + Config::margin, now - _bit_us / 2);
+            bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - Config::margin);
 
             if (first == second) {
                 return false;
@@ -124,14 +143,6 @@ namespace hack {
                 return true;
             }
             return false;
-        }
-
-        void changeIdle() {
-            _mode = Mode::Idle;
-            _data = 0;
-            _index = 0;
-            _lastTime = 0;
-            _bit_us = 0;
         }
     };
 }

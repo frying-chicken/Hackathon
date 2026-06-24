@@ -30,7 +30,7 @@ namespace hack {
 
         Mode _mode = Mode::Idle;
 
-        PrefixSumWindow<time_t, std::make_unsigned_t<T>, 1024 * 2> _prefixSumWindow;
+        PrefixSumWindow<time_t, unsigned int, 1024 * 2> _prefixSumWindow;
 
         time_t _lastTime = 0;
 
@@ -70,16 +70,16 @@ namespace hack {
                 }
                 _lastTime = now;
 
-                if (++_index == 16 + 1) {
+                if (++_index == 32 + 1) {
                     _index = 0;
-                    _bit_us /= 16;
+                    _bit_us /= 32;
 
                     _mode = Mode::Start;
                 }
                 return;
             }
             case Mode::Start: {
-                if(read(now, baseline)){
+                if (read(now, baseline)) {
                     //Serial.println(_data);
                 }
                 if (_data == Config::start_pattern) {
@@ -109,14 +109,14 @@ namespace hack {
                 return false;
             }
 
-            bool first = baseline < _prefixSumWindow.average(now - _bit_us + 200, now - _bit_us / 2);
-            bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - 200);
+            bool first = baseline < _prefixSumWindow.average(now - _bit_us + 50, now - _bit_us / 2);
+            bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - 50);
 
             if (first == second) {
                 return false;
             }
 
-            _data = (_data << 1) | (first ? 0 : 1);
+            _data = (_data << 1) | (!first ? 0 : 1);
             _lastTime += _bit_us;
 
             if (++_index == bit_size(_data)) {

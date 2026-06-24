@@ -44,14 +44,12 @@ namespace hack {
             case Mode::Preamble: {
                 if (sendPreamble()) {
                     _mode = Mode::Start;
-                    Serial.println("s");
                 }
                 return;
             }
             case Mode::Start: {
                 if (sendValue(Config::start_pattern)) {
                     _mode = Mode::Payload;
-                    Serial.println("p");
                 }
                 return;
             }
@@ -78,7 +76,7 @@ namespace hack {
 
     private:
         bool sendPreamble() {
-            return sendHalfBit(false, 32);
+            return sendHalfBit(false, 64);
         }
 
         template<typename U>

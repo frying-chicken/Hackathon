@@ -4,7 +4,7 @@
 #include "Utility.hpp"
 
 namespace hack::Config {
-    constexpr time_t half_bit_us = 800;
+    constexpr time_t half_bit_us = 1000;
     constexpr time_t bit_us = half_bit_us * 2;
 
     constexpr uint64_t preamble = 0;
@@ -13,7 +13,7 @@ namespace hack::Config {
     constexpr size_t sender_buffer_capacity = 256;
     constexpr size_t receiver_sample_capacity = 1024 * 2;
 
-    constexpr time_t baseline_us = bit_us * 4;
+    constexpr time_t baseline_us = bit_us * 2;
     constexpr int level_hysteresis = 4;
 
     constexpr size_t preamble_period_count = 16;

@@ -46,7 +46,6 @@ namespace hack {
 
             return (_data[end_index - 1].second - _data[begin_index - 1].second) / (end_index - begin_index);
         }
-
     private:
         size_t lower_bound(size_t begin, size_t end, Key key) const {
             while (begin < end) {

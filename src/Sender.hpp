@@ -69,7 +69,7 @@ namespace hack {
         }
 
         bool operator()(uint8_t x) {
-            if (!_buffer.push_back(x))return false;
+            if (!_buffer.push_back(x)) return false;
 
             if (_mode == Mode::Idle) {
                 _mode = Mode::Calibration;

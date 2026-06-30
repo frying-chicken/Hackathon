@@ -19,6 +19,6 @@ namespace hack {
     }
     template<typename T>
     constexpr void writeBit(T& x, size_t index, bool value) {
-        bitWrite(x, index, value);
+        bitWrite(x, bit_size(x) - 1 - index, value);
     }
 }

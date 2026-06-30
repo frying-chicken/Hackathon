@@ -31,8 +31,10 @@ namespace hack {
             : _callback(callback ? callback : [](uint8_t) {}) {
         }
 
-        void update(time_t now = micros()) {
-            _prefixSumWindow.push(now, analogRead(PIN));
+        void update() {
+            const int value = analogRead(PIN);
+            const time_t now = micros();
+            _prefixSumWindow.push(now, value);
 
             switch (_mode) {
             case Mode::Idle: {
@@ -48,8 +50,9 @@ namespace hack {
 
                 _lastTime = now;
 
-                if (++_index == Config::read_preamble_size) {
+                if (++_index == Config::preamble_required) {
                     _mode = Mode::Start;
+                    Serial.println("s");
                     _data = 0;
                     _index = 0;
                 }
@@ -63,6 +66,7 @@ namespace hack {
 
                 if (_data == Config::start) {
                     _mode = Mode::Payload;
+                    Serial.println("p");
                     _data = 0;
                     _index = 0;
                 }
@@ -73,6 +77,7 @@ namespace hack {
                 if (!x)return;
 
                 writeBit(_data, _index, *x);
+
                 if (++_index == bit_size(_data)) {
                     _callback(_data);
                     _data = 0;
@@ -87,13 +92,12 @@ namespace hack {
         bool isBefore(time_t now) const {
             return now < _lastTime + Config::bit_us - Config::margin_us;
         }
-
         bool isAfter(time_t now) const {
             return _lastTime + Config::bit_us + Config::margin_us < now;
         }
 
-        static bool isLow(int x, int base) {
-            return x < base;
+        static bool isHigh(int x, int base) {
+            return base < x;
         }
 
         std::optional<bool> decode(time_t now) const {
@@ -105,10 +109,10 @@ namespace hack {
             std::optional<int> first = _prefixSumWindow.average(begin + Config::margin_us, middle);
             std::optional<int> second = _prefixSumWindow.average(middle, end - Config::margin_us);
 
-            if (!base || !first || !second) return std::nullopt;
+            if (!base || !first || !second) { Serial.print("x"); return std::nullopt; }
 
-            bool x = isLow(*first, *base);
-            if (x == isLow(*second, *base)) return std::nullopt;
+            bool x = isHigh(*first, *base);
+            if (x == isHigh(*second, *base)) return std::nullopt;
 
             return x;
         }

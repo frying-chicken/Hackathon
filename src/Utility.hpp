@@ -14,7 +14,11 @@ namespace hack {
     }
 
     template<typename T>
-    constexpr bool readBit(const T& x, size_t index) {
+    constexpr bool readBit(const T x, size_t index) {
         return bitRead(x, bit_size(x) - 1 - index);
+    }
+    template<typename T>
+    constexpr void writeBit(T& x, size_t index, bool value) {
+        bitWrite(x, index, value);
     }
 }

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <limits>
-#include <utility>
+#include <optional>
 #include <type_traits>
+#include <utility>
 
-#include "Utility.hpp"
 #include "RingContainer.hpp"
+#include "Utility.hpp"
 
 namespace hack {
     template <typename Key, typename T, size_t Capacity>
@@ -29,28 +30,19 @@ namespace hack {
         }
 
         bool push(Key key, T value) {
-            if (!(_data.back().first <= key)) {
-                return false;
-            }
+            if (!(_data.back().first < key)) return false;
+
             _data.push_back({ key, _data.back().second + value });
             return true;
         }
 
-        T average(Key begin, Key end) const {
-            if (empty() || !(begin < end)) {
-                return T{};
-            }
+        std::optional<T> average(Key begin, Key end) const {
+            if (empty() || !(begin < end)) return std::nullopt;
 
             const size_t begin_index = lower_bound(1, _data.size(), begin);
             const size_t end_index = lower_bound(begin_index, _data.size(), end);
 
-            if(begin_index == 1){
-                Serial.println("XXX");
-            }
-
-            if (begin_index == end_index) {
-                return T{};
-            }
+            if (begin_index == end_index) return std::nullopt;
 
             return (_data[end_index - 1].second - _data[begin_index - 1].second) / (end_index - begin_index);
         }

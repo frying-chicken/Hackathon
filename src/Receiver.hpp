@@ -2,109 +2,81 @@
 
 #include <Arduino.h>
 #include <cstdint>
+#include <optional>
 
 #include "Config.hpp"
 #include "PrefixSumWindow.hpp"
 #include "Utility.hpp"
 
 namespace hack {
-    template<pin_size_t PIN, typename T = uint8_t>
+    template<pin_size_t PIN>
     class Receiver
     {
         enum class Mode {
             Idle,
             Start,
-            Payload
+            Payload,
         };
 
-    public:
-        using Callback = void (*)(T);
+        PrefixSumWindow<time_t, unsigned int, Config::buffer_size> _prefixSumWindow;
 
-    private:
-        Callback _callback;
-
-        uint16_t _start_pattern = 0;
-
-        T _data = 0;
-        size_t _index = 0;
-
+        void (*_callback)(uint8_t);
         Mode _mode = Mode::Idle;
-
-        PrefixSumWindow<time_t, unsigned int, 1024 * 2> _prefixSumWindow;
-
+        uint8_t _data = 0;
+        size_t _index = 0;
         time_t _lastTime = 0;
 
-        bool _level = true;
-        time_t _bit_us = 0;
-
     public:
-        Receiver(Callback callback)
-            : _callback(callback)
-        {
-            if (_callback == nullptr) {
-                _callback = [](T) {};
-            }
+        Receiver(void(*callback)(uint8_t))
+            : _callback(callback ? callback : [](uint8_t) {}) {
         }
 
         void update(time_t now = micros()) {
-            const int sample = analogRead(PIN);
-            _prefixSumWindow.push(now, sample);
-
-            int baseline = _prefixSumWindow.average(now - Config::baseline_us, now);
+            _prefixSumWindow.push(now, analogRead(PIN));
 
             switch (_mode) {
             case Mode::Idle: {
-                bool level = baseline < sample;
+                if (isBefore(now)) return;
 
-                if (level == _level) { return; }
+                std::optional<bool> x = decode(now);
+                if (!x)return;
 
-                
-
-
-
-
-                _level = level;
-
-                if (level) { return; }
-
-                if (_lastTime == 0) {
-                    _lastTime = now;
+                if (*x == true) {
+                    changeIdle();
                     return;
                 }
 
-                time_t duration = now - _lastTime;
-                if (!(Config::bit_us - Config::margin <= duration && duration <= Config::bit_us + Config::margin)) {
-                    _lastTime = now;
-                    _bit_us = 0;
-                    _index = 0;
-                    return;
-                }
-
-                _bit_us += duration;
                 _lastTime = now;
 
-                if (++_index == 16 + 1) {
-                    _index = 0;
-                    _bit_us /= 16;
-
-                    _data = 0;
+                if (++_index == Config::read_preamble_size) {
                     _mode = Mode::Start;
+                    _data = 0;
+                    _index = 0;
                 }
                 return;
             }
             case Mode::Start: {
-                if (read(now, baseline)) {
-                    Serial.println(_data);
-                }
-                if (_data == Config::start_pattern) {
-                    _index = 0;
+                std::optional<bool> x = receive(now);
+                if (!x)return;
+
+                _data = (_data << 1) | *x;
+
+                if (_data == Config::start) {
                     _mode = Mode::Payload;
+                    _data = 0;
+                    _index = 0;
                 }
                 return;
             }
             case Mode::Payload: {
-                if (read(now, baseline)) {
+                std::optional<bool> x = receive(now);
+                if (!x)return;
+
+                writeBit(_data, _index, *x);
+                if (++_index == bit_size(_data)) {
                     _callback(_data);
+                    _data = 0;
+                    _index = 0;
                 }
                 return;
             }
@@ -112,37 +84,54 @@ namespace hack {
         }
 
     private:
-        bool read(time_t now, int baseline) {
-            if (now < _lastTime + _bit_us - Config::margin) {
-                return false;
+        bool isBefore(time_t now) const {
+            return now < _lastTime + Config::bit_us - Config::margin_us;
+        }
+
+        bool isAfter(time_t now) const {
+            return _lastTime + Config::bit_us + Config::margin_us < now;
+        }
+
+        static bool isLow(int x, int base) {
+            return x < base;
+        }
+
+        std::optional<bool> decode(time_t now) const {
+            const time_t begin = now - Config::bit_us;
+            const time_t middle = now - Config::half_bit_us;
+            const time_t end = now;
+
+            std::optional<int> base = _prefixSumWindow.average(begin - Config::baseline_us, begin);
+            std::optional<int> first = _prefixSumWindow.average(begin + Config::margin_us, middle);
+            std::optional<int> second = _prefixSumWindow.average(middle, end - Config::margin_us);
+
+            if (!base || !first || !second) return std::nullopt;
+
+            bool x = isLow(*first, *base);
+            if (x == isLow(*second, *base)) return std::nullopt;
+
+            return x;
+        }
+
+        std::optional<bool> receive(time_t now) {
+            if (isBefore(now)) return std::nullopt;
+            if (isAfter(now)) {
+                changeIdle();
+                return std::nullopt;
             }
 
-            if (_lastTime + _bit_us + Config::margin < now) {
+            std::optional<bool> x = decode(now);
+            if (!x)return std::nullopt;
 
-                _index = 0;
-                _bit_us = 0;
-                _lastTime = 0;
-                _data = 0;
+            _lastTime = now;
+            return *x;
+        }
 
-                _mode = Mode::Idle;
-                return false;
-            }
-
-            bool first = baseline < _prefixSumWindow.average(now - _bit_us + Config::margin, now - _bit_us / 2);
-            bool second = baseline < _prefixSumWindow.average(now - _bit_us / 2, now - Config::margin);
-
-            if (first == second) {
-                return false;
-            }
-
-            _data = (_data << 1) | (!first ? 0 : 1);
-            _lastTime += _bit_us;
-
-            if (++_index == bit_size(_data)) {
-                _index = 0;
-                return true;
-            }
-            return false;
+        void changeIdle() {
+            _mode = Mode::Idle;
+            _data = 0;
+            _index = 0;
+            _lastTime = 0;
         }
     };
 }

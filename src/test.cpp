@@ -12,7 +12,7 @@ void onReceive(uint8_t x) {
     Serial.println(x == value - 1);
 }
 
-hack::Receiver<A0, uint8_t> receiver(onReceive);
+hack::Receiver<A0> receiver(onReceive);
 hack::Sender<2, uint8_t> sender;
 
 hack::Clock<5'000'000> clock;

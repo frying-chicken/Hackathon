@@ -6,10 +6,11 @@
 
 #include "Config.hpp"
 #include "PrefixSumWindow.hpp"
+#include "RingContainer.hpp"
 #include "Utility.hpp"
 
 namespace hack {
-    template<pin_size_t PIN>
+    template<pin_size_t PIN, size_t Capacity>
     class Receiver
     {
         enum class Mode {
@@ -19,6 +20,7 @@ namespace hack {
         };
 
         PrefixSumWindow<time_t, unsigned int, Config::buffer_size> _prefixSumWindow;
+        RingContainer<uint8_t, Capacity> _buffer;
 
         void (*_callback)(uint8_t);
         Mode _mode = Mode::Idle;

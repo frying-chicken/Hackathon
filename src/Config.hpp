@@ -4,7 +4,7 @@
 #include "Utility.hpp"
 
 namespace hack::Config {
-    constexpr time_t half_bit_us = 300;
+    constexpr time_t half_bit_us = 500;
     constexpr time_t margin_us = 50;
 
     constexpr time_t bit_us = half_bit_us * 2;
@@ -16,5 +16,5 @@ namespace hack::Config {
     constexpr time_t baseline_us = bit_us * bit_size(calibration) / 2;
     constexpr size_t preamble_required = bit_size(preamble) / 2;
 
-    constexpr size_t buffer_size = 512;
+    constexpr size_t buffer_size = 1024;
 }

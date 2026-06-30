@@ -52,7 +52,6 @@ namespace hack {
 
                 if (++_index == Config::preamble_required) {
                     _mode = Mode::Start;
-                    Serial.println("s");
                     _data = 0;
                     _index = 0;
                 }
@@ -66,7 +65,6 @@ namespace hack {
 
                 if (_data == Config::start) {
                     _mode = Mode::Payload;
-                    Serial.println("p");
                     _data = 0;
                     _index = 0;
                 }
@@ -109,7 +107,7 @@ namespace hack {
             std::optional<int> first = _prefixSumWindow.average(begin + Config::margin_us, middle);
             std::optional<int> second = _prefixSumWindow.average(middle, end - Config::margin_us);
 
-            if (!base || !first || !second) { Serial.print("x"); return std::nullopt; }
+            if (!base || !first || !second) return std::nullopt;
 
             bool x = isHigh(*first, *base);
             if (x == isHigh(*second, *base)) return std::nullopt;

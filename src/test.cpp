@@ -19,7 +19,7 @@ hack::Clock<5'000'000> clock;
 
 void setup() {
     Serial.begin(250000);
-    Serial.println("Test");
+    Serial.println("Test ver1");
 
     clock.update();
 }
@@ -27,17 +27,12 @@ void setup() {
 time_t x = 0;
 
 void loop() {
-    // if (clock.update()) {
-    //     sender(value);
-    //     Serial.print("in:");
-    //     Serial.println(value++);
-    // }
-
-    // sender.update();
-    time_t s = micros();
-    receiver.update();
-    x += micros() - s;
-    if (++value == 100'000) {
-        Serial.println(x / 100'000);
+    if (clock.update()) {
+        sender(value);
+        Serial.print("in:");
+        Serial.println(value++);
     }
+
+    sender.update();
+    receiver.update();
 }

@@ -6,6 +6,7 @@
 #include "Clock.hpp"
 #include "Config.hpp"
 #include "RingContainer.hpp"
+#include "Types.hpp"
 #include "Utility.hpp"
 
 namespace hack {
@@ -28,13 +29,13 @@ namespace hack {
         size_t _index = 0;
 
     public:
-        Sender() {
+        void begin() {
             pinMode(PIN, OUTPUT);
             digitalWrite(PIN, LOW);
         }
 
-        void update(time_t now = micros()) {
-            if (!_clock.update(now)) return;
+        void update() {
+            if (!_clock.update()) return;
 
             switch (_mode)
             {
@@ -69,7 +70,8 @@ namespace hack {
         }
 
         bool operator()(uint8_t x) {
-            if (!_buffer.push_back(x)) return false;
+            if (_buffer.full()) return false;
+            _buffer.push_back(x);
 
             if (_mode == Mode::Idle) {
                 _mode = Mode::Calibration;
@@ -81,7 +83,7 @@ namespace hack {
         template<typename T>
         bool send(T data) {
             bool bit = readBit(data, _index) ^ _halfPhase;
-            digitalWrite(PIN, !bit ? LOW : HIGH);
+            digitalWrite(PIN, bit ? HIGH : LOW);
 
             _halfPhase = !_halfPhase;
             if (_halfPhase) return false;

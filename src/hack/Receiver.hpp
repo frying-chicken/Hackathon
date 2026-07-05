@@ -7,6 +7,7 @@
 #include "Config.hpp"
 #include "PrefixSumWindow.hpp"
 #include "RingContainer.hpp"
+#include "Types.hpp"
 #include "Utility.hpp"
 
 namespace hack {
@@ -19,18 +20,18 @@ namespace hack {
             Payload,
         };
 
-        PrefixSumWindow<time_t, unsigned int, Config::buffer_size> _prefixSumWindow;
         RingContainer<uint8_t, Capacity> _buffer;
+        PrefixSumWindow<time_t, uint32_t, Config::buffer_size> _prefixSumWindow;
 
-        void (*_callback)(uint8_t);
+        void (*_callback)(const RingContainer<uint8_t, Capacity>&);
         Mode _mode = Mode::Idle;
         uint8_t _data = 0;
         size_t _index = 0;
         time_t _lastTime = 0;
 
     public:
-        Receiver(void(*callback)(uint8_t))
-            : _callback(callback ? callback : [](uint8_t) {}) {
+        Receiver(void(*callback)(const RingContainer<uint8_t, Capacity>&))
+            : _callback(callback ? callback : [](const RingContainer<uint8_t, Capacity>&) {}) {
         }
 
         void update() {
@@ -43,27 +44,27 @@ namespace hack {
                 if (isBefore(now)) return;
 
                 std::optional<bool> x = decode(now);
-                if (!x)return;
+                if (!x) return;
 
                 if (*x == true) {
-                    changeIdle();
+                    resetState();
                     return;
                 }
-
-                _lastTime = now;
 
                 if (++_index == Config::preamble_required) {
                     _mode = Mode::Start;
                     _data = 0;
                     _index = 0;
                 }
+
+                _lastTime = now;
                 return;
             }
             case Mode::Start: {
                 std::optional<bool> x = receive(now);
-                if (!x)return;
+                if (!x) return;
 
-                _data = (_data << 1) | *x;
+                shiftInBit(_data,*x);
 
                 if (_data == Config::start) {
                     _mode = Mode::Payload;
@@ -74,14 +75,12 @@ namespace hack {
             }
             case Mode::Payload: {
                 std::optional<bool> x = receive(now);
-                if (!x)return;
+                if (!x) return;
 
                 writeBit(_data, _index, *x);
 
                 if (++_index == bit_size(_data)) {
-                    _callback(_data);
-                    _data = 0;
-                    _index = 0;
+                    pushPacket();
                 }
                 return;
             }
@@ -90,10 +89,10 @@ namespace hack {
 
     private:
         bool isBefore(time_t now) const {
-            return now < _lastTime + Config::bit_us - Config::margin_us;
+            return now - _lastTime < Config::bit_us - Config::margin_us;
         }
         bool isAfter(time_t now) const {
-            return _lastTime + Config::bit_us + Config::margin_us < now;
+            return Config::bit_us + Config::margin_us < now - _lastTime;
         }
 
         static bool isHigh(int x, int base) {
@@ -101,13 +100,14 @@ namespace hack {
         }
 
         std::optional<bool> decode(time_t now) const {
+            if (now < Config::bit_us + Config::threshold_window_us) return std::nullopt;
             const time_t begin = now - Config::bit_us;
             const time_t middle = now - Config::half_bit_us;
             const time_t end = now;
 
-            std::optional<int> base = _prefixSumWindow.average(begin - Config::baseline_us, begin);
-            std::optional<int> first = _prefixSumWindow.average(begin + Config::margin_us, middle);
-            std::optional<int> second = _prefixSumWindow.average(middle, end - Config::margin_us);
+            std::optional<int> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
+            std::optional<int> first = _prefixSumWindow.average(begin + Config::half_bit_us / 2, middle);
+            std::optional<int> second = _prefixSumWindow.average(middle, end - Config::half_bit_us / 2);
 
             if (!base || !first || !second) return std::nullopt;
 
@@ -120,7 +120,7 @@ namespace hack {
         std::optional<bool> receive(time_t now) {
             if (isBefore(now)) return std::nullopt;
             if (isAfter(now)) {
-                changeIdle();
+                finishPacket();
                 return std::nullopt;
             }
 
@@ -131,7 +131,30 @@ namespace hack {
             return *x;
         }
 
-        void changeIdle() {
+        void pushPacket() {
+            if (_buffer.full()) {
+                flushPacket();
+            }
+
+            _buffer.push_back(_data);
+            
+            _data = 0;
+            _index = 0;
+        }
+
+        void finishPacket() {
+            if (!_buffer.empty()) {
+                flushPacket();
+            }
+            resetState();
+        }
+
+        void flushPacket() {
+            _callback(_buffer);
+            _buffer.reset();
+        }
+
+        void resetState() {
             _mode = Mode::Idle;
             _data = 0;
             _index = 0;

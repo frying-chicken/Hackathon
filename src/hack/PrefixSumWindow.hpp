@@ -11,6 +11,7 @@
 namespace hack {
     template <typename Key, typename T, size_t Capacity>
     class PrefixSumWindow {
+        static_assert(std::is_unsigned_v<Key>);
         static_assert(std::is_unsigned_v<T>);
         static_assert(0 < Capacity);
 
@@ -29,11 +30,8 @@ namespace hack {
             _data.push_back({ std::numeric_limits<Key>::lowest(), T{} });
         }
 
-        bool push(Key key, T value) {
-            if (!(_data.back().first < key)) return false;
-
+        void push(Key key, T value) {
             _data.push_back({ key, _data.back().second + value });
-            return true;
         }
 
         std::optional<T> average(Key begin, Key end) const {
@@ -48,20 +46,21 @@ namespace hack {
         }
     private:
         size_t lower_bound(size_t begin, size_t end, Key key) const {
+            Key base = _data[begin].first;
             while (begin < end) {
                 size_t m = begin + (end - begin) / 2;
-                if (_data[m].first < key) { begin = m + 1; }
+                if (_data[m].first - base < key - base) { begin = m + 1; }
                 else { end = m; }
             }
             return begin;
         }
-        size_t upper_bound(size_t begin, size_t end, Key key) const {
-            while (begin < end) {
-                size_t m = begin + (end - begin) / 2;
-                if (_data[m].first <= key) { begin = m + 1; }
-                else { end = m; }
-            }
-            return begin;
-        }
+        // size_t upper_bound(size_t begin, size_t end, Key key) const {
+        //     while (begin < end) {
+        //         size_t m = begin + (end - begin) / 2;
+        //         if (_data[m].first <= key) { begin = m + 1; }
+        //         else { end = m; }
+        //     }
+        //     return begin;
+        // }
     };
 }

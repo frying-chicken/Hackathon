@@ -31,7 +31,10 @@ namespace hack {
         bool full() const { return _size == Capacity; }
         static constexpr size_t capacity() { return Capacity; }
 
-        void reset() { _front = 0;_size = 0; }
+        void reset() {
+            _front = 0;
+            _size = 0;
+        }
 
         bool push_front(T x) {
             _front = decrement(_front);
@@ -51,16 +54,15 @@ namespace hack {
             _front = increment(_front);
             return false;
         }
+
         void pop_front() {
             if (_size == 0) return;
             _front = increment(_front);
             _size--;
-            return;
         }
         void pop_back() {
             if (_size == 0) return;
             _size--;
-            return;
         }
 
     private:

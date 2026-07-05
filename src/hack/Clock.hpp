@@ -12,8 +12,12 @@ namespace hack {
         time_t _last = 0;
 
     public:
+        void reset() {
+            _last = micros();
+        }
+
         bool update() {
-            time_t now = micros();
+            const time_t now = micros();
 
             if (now - _last < Interval) return false;
 

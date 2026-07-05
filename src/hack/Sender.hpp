@@ -32,6 +32,7 @@ namespace hack {
         void begin() {
             pinMode(PIN, OUTPUT);
             digitalWrite(PIN, LOW);
+            _clock.reset();
         }
 
         void update() {
@@ -40,31 +41,19 @@ namespace hack {
             switch (_mode)
             {
             case Mode::Idle:
-                digitalWrite(PIN, LOW);
+                updateIdle();
                 return;
             case Mode::Calibration:
-                if (send(Config::calibration)) {
-                    _mode = Mode::Preamble;
-                }
+                sendCalibration();
                 return;
             case Mode::Preamble:
-                if (send(Config::preamble)) {
-                    _mode = Mode::Start;
-                }
+                sendPreamble();
                 return;
             case Mode::Start:
-                if (send(Config::start)) {
-                    _mode = Mode::Payload;
-                }
+                sendStart();
                 return;
             case Mode::Payload:
-                if (send(_buffer.front())) {
-                    _buffer.pop_front();
-
-                    if (_buffer.empty()) {
-                        _mode = Mode::Idle;
-                    }
-                }
+                sendPayload();
                 return;
             }
         }
@@ -80,9 +69,40 @@ namespace hack {
         }
 
     private:
+        void updateIdle() {
+            digitalWrite(PIN, LOW);
+        }
+
+        void sendCalibration() {
+            if (send(Config::calibration)) {
+                _mode = Mode::Preamble;
+            }
+        }
+
+        void sendPreamble() {
+            if (send(Config::preamble)) {
+                _mode = Mode::Start;
+            }
+        }
+
+        void sendStart() {
+            if (send(Config::start)) {
+                _mode = Mode::Payload;
+            }
+        }
+
+        void sendPayload() {
+            if (!send(_buffer.front())) return;
+
+            _buffer.pop_front();
+            if (_buffer.empty()) {
+                _mode = Mode::Idle;
+            }
+        }
+
         template<typename T>
         bool send(T data) {
-            bool bit = readBit(data, _index) ^ _halfPhase;
+            const bool bit = readBit(data, _index) ^ _halfPhase;
             digitalWrite(PIN, bit ? HIGH : LOW);
 
             _halfPhase = !_halfPhase;

@@ -23,6 +23,11 @@ namespace hack {
         RingContainer<uint8_t, Capacity> _buffer;
         PrefixSumWindow<time_t, uint32_t, Config::buffer_size> _prefixSumWindow;
 
+        struct DecodedBit {
+            bool value;
+            time_t edge;
+        };
+
         void (*_callback)(const RingContainer<uint8_t, Capacity>&);
         Mode _mode = Mode::Idle;
         uint8_t _data = 0;
@@ -40,7 +45,20 @@ namespace hack {
             _prefixSumWindow.push(now, value);
 
             switch (_mode) {
-            case Mode::Idle: {
+            case Mode::Idle:
+                updateIdle(now);
+                return;
+            case Mode::Start:
+                updateStart(now);
+                return;
+            case Mode::Payload:
+                updatePayload(now);
+                return;
+            }
+        }
+
+    private:
+        void updateIdle(time_t now) {
                 if (isBefore(now)) return;
 
                 std::optional<bool> x = decode(now);

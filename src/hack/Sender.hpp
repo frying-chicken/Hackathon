@@ -44,16 +44,16 @@ namespace hack {
                 updateIdle();
                 return;
             case Mode::Calibration:
-                sendCalibration();
+                updateCalibration();
                 return;
             case Mode::Preamble:
-                sendPreamble();
+                updatePreamble();
                 return;
             case Mode::Start:
-                sendStart();
+                updateStart();
                 return;
             case Mode::Payload:
-                sendPayload();
+                updatePayload();
                 return;
             }
         }
@@ -73,25 +73,25 @@ namespace hack {
             digitalWrite(PIN, LOW);
         }
 
-        void sendCalibration() {
+        void updateCalibration() {
             if (send(Config::calibration)) {
                 _mode = Mode::Preamble;
             }
         }
 
-        void sendPreamble() {
+        void updatePreamble() {
             if (send(Config::preamble)) {
                 _mode = Mode::Start;
             }
         }
 
-        void sendStart() {
+        void updateStart() {
             if (send(Config::start)) {
                 _mode = Mode::Payload;
             }
         }
 
-        void sendPayload() {
+        void updatePayload() {
             if (!send(_buffer.front())) return;
 
             _buffer.pop_front();

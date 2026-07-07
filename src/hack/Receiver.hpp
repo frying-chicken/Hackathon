@@ -1,18 +1,18 @@
 #pragma once
 
 #include <Arduino.h>
+#include <array>
 #include <cstdint>
 #include <optional>
 
 #include "Config.hpp"
 #include "PrefixSumWindow.hpp"
-#include "RingContainer.hpp"
 #include "Types.hpp"
 #include "Utility.hpp"
 
 namespace hack
 {
-    template <pin_size_t PIN, size_t Capacity>
+    template <uint8_t PIN, size_t Capacity>
     class Receiver
     {
         enum class Mode
@@ -22,24 +22,19 @@ namespace hack
             Payload,
         };
 
-        RingContainer<uint8_t, Capacity> _buffer;
+        std::array<uint8_t, Capacity> _buffer = {};
         PrefixSumWindow<time_t, uint32_t, Config::buffer_size> _prefixSumWindow;
 
-        struct DecodedBit
-        {
-            bool value;
-            time_t edge;
-        };
-
-        void (*_callback)(const RingContainer<uint8_t, Capacity> &);
+        void (*_callback)(const std::array<uint8_t, Capacity> &) = nullptr;
         Mode _mode = Mode::Idle;
         uint8_t _data = 0;
-        size_t _index = 0;
+        size_t _bitIndex = 0;
+        size_t _packetSize = 0;
         time_t _lastTime = 0;
 
     public:
-        Receiver(void (*callback)(const RingContainer<uint8_t, Capacity> &))
-            : _callback(callback ? callback : [](const RingContainer<uint8_t, Capacity> &) {})
+        Receiver(void (*callback)(const std::array<uint8_t, Capacity> &))
+            : _callback(callback ? callback : [](const std::array<uint8_t, Capacity> &) {})
         {
         }
 
@@ -66,10 +61,7 @@ namespace hack
     private:
         void updateIdle(time_t now)
         {
-            if (isBefore(now))
-                return;
-
-            std::optional<bool> x = decode(now);
+            std::optional<bool> x = receive(now);
             if (!x)
                 return;
 
@@ -79,79 +71,70 @@ namespace hack
                 return;
             }
 
-            if (++_index == Config::preamble_required)
+            if (++_bitIndex == Config::preamble_required)
             {
                 _mode = Mode::Start;
-                _data = 0;
-                _index = 0;
+                _bitIndex = 0;
             }
-
-            _lastTime = now;
-            return;
-        }
-    case Mode::Start:
-    {
-        std::optional<bool> x = receive(now);
-        if (!x)
-            return;
-
-        shiftInBit(_data, *x);
-
-        if (_data == Config::start)
-        {
-            _mode = Mode::Payload;
-            _data = 0;
-            _index = 0;
-        }
-        return;
-    }
-    case Mode::Payload:
-    {
-        std::optional<bool> x = receive(now);
-        if (!x)
-            return;
-
-        writeBit(_data, _index, *x);
-
-        if (++_index == bit_size(_data))
-        {
-            pushPacket();
-        }
-        return;
-    }
-
-    private:
-        bool isBefore(time_t now) const
-        {
-            return now - _lastTime < Config::bit_us - Config::margin_us;
-        }
-        bool isAfter(time_t now) const
-        {
-            return Config::bit_us + Config::margin_us < now - _lastTime;
         }
 
-        static bool isHigh(int x, int base)
+        void updateStart(time_t now)
         {
-            return base < x;
+            std::optional<bool> x = receive(now);
+            if (!x)
+                return;
+
+            shiftInBit(_data, *x);
+
+            if (_data == Config::start)
+            {
+                _mode = Mode::Payload;
+                _data = 0;
+                _bitIndex = 0;
+            }
         }
 
-        std::optional<bool> decode(time_t now) const
+        void updatePayload(time_t now)
         {
-            if (now < Config::bit_us + Config::threshold_window_us)
+            std::optional<bool> x = receive(now);
+            if (!x)
+                return;
+
+            writeBit(_data, _bitIndex, *x);
+
+            if (++_bitIndex == bit_size(_data))
+                pushPacket();
+        }
+
+        bool isBefore(time_t now) const { return now - _lastTime < Config::bit_us - Config::margin_us; }
+        bool isAfter(time_t now) const { return Config::bit_us + Config::margin_us < now - _lastTime; }
+
+        static bool level(int x, int base) { return base < x; }
+
+        std::optional<bool> decode(time_t sample_timing, bool useBaseline) const
+        {
+            if (sample_timing < Config::bit_us + Config::threshold_window_us)
                 return std::nullopt;
-            const time_t begin = now - Config::bit_us;
-            const time_t middle = now - Config::half_bit_us;
-            const time_t end = now;
 
-            std::optional<int> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
+            const time_t begin = sample_timing - Config::bit_us;
+            const time_t middle = sample_timing - Config::half_bit_us;
+            const time_t end = sample_timing;
+
             std::optional<int> first = _prefixSumWindow.average(begin + Config::half_bit_us / 2, middle);
             std::optional<int> second = _prefixSumWindow.average(middle, end - Config::half_bit_us / 2);
 
-            if (!base || !first || !second)
+            if (!first || !second)
                 return std::nullopt;
 
-            bool x = isHigh(*first, *base);
-            if (x == isHigh(*second, *base))
+            if (!useBaseline)
+                return *second < *first;
+
+            std::optional<int> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
+            if (!base)
+                return std::nullopt;
+
+            bool x = level(*first, *base);
+            if (x == level(*second, *base))
                 return std::nullopt;
 
             return x;
@@ -159,55 +142,49 @@ namespace hack
 
         std::optional<bool> receive(time_t now)
         {
-            if (isBefore(now))
-                return std::nullopt;
-            if (isAfter(now))
+            bool useBaseline = true;
+            time_t sampleUs = now;
+
+            if (_lastTime != 0)
             {
-                finishPacket();
-                return std::nullopt;
+                if (isBefore(now))
+                    return std::nullopt;
+
+                if (isAfter(now))
+                {
+                    sampleUs = _lastTime + Config::bit_us;
+                    useBaseline = false;
+                }
             }
 
-            std::optional<bool> x = decode(now);
+            std::optional<bool> x = decode(sampleUs, useBaseline);
             if (!x)
                 return std::nullopt;
 
-            _lastTime = now;
+            _lastTime = sampleUs;
             return *x;
         }
 
         void pushPacket()
         {
-            if (_buffer.full())
-            {
-                flushPacket();
-            }
-
-            _buffer.push_back(_data);
+            _buffer[_packetSize] = _data;
 
             _data = 0;
-            _index = 0;
-        }
+            _bitIndex = 0;
 
-        void finishPacket()
-        {
-            if (!_buffer.empty())
+            if (++_packetSize == _buffer.size())
             {
-                flushPacket();
+                _callback(_buffer);
+                resetState();
             }
-            resetState();
-        }
-
-        void flushPacket()
-        {
-            _callback(_buffer);
-            _buffer.reset();
         }
 
         void resetState()
         {
             _mode = Mode::Idle;
             _data = 0;
-            _index = 0;
+            _bitIndex = 0;
+            _packetSize = 0;
             _lastTime = 0;
         }
     };

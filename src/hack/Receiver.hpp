@@ -25,7 +25,9 @@ namespace hack
         std::array<uint8_t, Capacity> _buffer = {};
         PrefixSumWindow<time_t, uint32_t, Config::buffer_size> _prefixSumWindow;
 
-        void (*_callback)(const std::array<uint8_t, Capacity> &) = nullptr;
+        static void noCallback(const std::array<uint8_t, Capacity> &) {}
+
+        void (*_callback)(const std::array<uint8_t, Capacity> &) = noCallback;
         Mode _mode = Mode::Idle;
         uint8_t _data = 0;
         size_t _bitIndex = 0;
@@ -33,9 +35,9 @@ namespace hack
         time_t _lastTime = 0;
 
     public:
-        Receiver(void (*callback)(const std::array<uint8_t, Capacity> &))
-            : _callback(callback ? callback : [](const std::array<uint8_t, Capacity> &) {})
+        void begin(void (*callback)(const std::array<uint8_t, Capacity> &))
         {
+            _callback = callback ? callback : noCallback;
         }
 
         void update()
@@ -113,15 +115,12 @@ namespace hack
 
         std::optional<bool> decode(time_t sample_timing, bool useBaseline) const
         {
-            if (sample_timing < Config::bit_us + Config::threshold_window_us)
+            if (sample_timing < Config::half_bit_us + Config::window_us)
                 return std::nullopt;
-
-            const time_t begin = sample_timing - Config::bit_us;
             const time_t middle = sample_timing - Config::half_bit_us;
-            const time_t end = sample_timing;
 
-            std::optional<int> first = _prefixSumWindow.average(begin + Config::half_bit_us / 2, middle);
-            std::optional<int> second = _prefixSumWindow.average(middle, end - Config::half_bit_us / 2);
+            std::optional<uint32_t> first = _prefixSumWindow.average(middle - Config::window_us, middle);
+            std::optional<uint32_t> second = _prefixSumWindow.average(middle, middle + Config::window_us);
 
             if (!first || !second)
                 return std::nullopt;
@@ -129,7 +128,12 @@ namespace hack
             if (!useBaseline)
                 return *second < *first;
 
-            std::optional<int> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
+            if (sample_timing < Config::bit_us + Config::threshold_window_us)
+                return std::nullopt;
+            const time_t begin = sample_timing - Config::bit_us;
+
+            std::optional<uint32_t> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
+            
             if (!base)
                 return std::nullopt;
 

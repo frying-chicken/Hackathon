@@ -27,7 +27,7 @@ namespace hack
         Clock<Config::half_bit_us> _clock;
 
         Mode _mode = Mode::Idle;
-        size_t _index = 0;
+        size_t _byteIndex = 0;
         bool _halfPhase = false;
         size_t _bitIndex = 0;
 
@@ -64,12 +64,16 @@ namespace hack
             }
         }
 
-        bool operator()(std::array<uint8_t, Capacity> x)
+        // Start sending one payload frame. Returns false while busy.
+        bool operator()(const std::array<uint8_t, Capacity> &x)
         {
             if (_mode != Mode::Idle)
                 return false;
             _mode = Mode::Calibration;
             _buffer = x;
+            _byteIndex = 0;
+            _bitIndex = 0;
+            _halfPhase = false;
             return true;
         }
 
@@ -96,26 +100,31 @@ namespace hack
 
         void updatePayload()
         {
-            if (!send(_buffer[_index]))
+            if (!send(_buffer[_byteIndex]))
                 return;
 
-            if (++_index == _buffer.size())
+            if (++_byteIndex == _buffer.size())
+            {
                 _mode = Mode::Idle;
+                _byteIndex = 0;
+                _bitIndex = 0;
+                _halfPhase = false;
+            }
         }
 
         template <typename T>
         bool send(T data)
         {
-            const bool bit = readBit(data, _index) ^ _halfPhase;
+            const bool bit = readBit(data, _bitIndex) ^ _halfPhase;
             digitalWrite(PIN, bit ? HIGH : LOW);
 
             _halfPhase = !_halfPhase;
             if (_halfPhase)
                 return false;
 
-            if (++_index == bit_size(data))
+            if (++_bitIndex == bit_size(data))
             {
-                _index = 0;
+                _bitIndex = 0;
                 return true;
             }
             return false;

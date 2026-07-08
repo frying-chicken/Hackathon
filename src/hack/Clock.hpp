@@ -1,31 +1,19 @@
 #pragma once
 
-#include <Arduino.h>
-
+#include "Timer.hpp"
 #include "Types.hpp"
 
-namespace hack {
-    template<time_t Interval>
-    class Clock
+namespace hack
+{
+    template <time_t Interval>
+    class Clock : public Timer
     {
         static_assert(0 < Interval);
-        time_t _last = 0;
 
     public:
-        void reset() {
-            _last = micros();
-        }
-
-        bool update() {
-            const time_t now = micros();
-
-            if (now - _last < Interval) return false;
-
-            _last += Interval;
-            if (Interval <= now - _last) {
-                _last = now;
-            }
-            return true;
+        bool update()
+        {
+            return Timer::update(Interval);
         }
     };
 }

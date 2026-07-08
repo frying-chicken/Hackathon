@@ -12,9 +12,11 @@
 
 namespace hack
 {
-    template <uint8_t PIN, size_t Capacity>
+    template <pin_size_t PIN, size_t Capacity>
     class Receiver
     {
+        static_assert(0 < Capacity);
+
         enum class Mode
         {
             Idle,
@@ -38,6 +40,8 @@ namespace hack
         void begin(void (*callback)(const std::array<uint8_t, Capacity> &))
         {
             _callback = callback ? callback : noCallback;
+            _prefixSumWindow.reset();
+            resetState();
         }
 
         void update()
@@ -63,11 +67,11 @@ namespace hack
     private:
         void updateIdle(time_t now)
         {
-            std::optional<bool> x = receive(now);
-            if (!x)
+            std::optional<bool> bit = receive(now);
+            if (!bit)
                 return;
 
-            if (*x == true)
+            if (*bit == true)
             {
                 resetState();
                 return;
@@ -82,11 +86,11 @@ namespace hack
 
         void updateStart(time_t now)
         {
-            std::optional<bool> x = receive(now);
-            if (!x)
+            std::optional<bool> bit = receive(now);
+            if (!bit)
                 return;
 
-            shiftInBit(_data, *x);
+            shiftInBit(_data, *bit);
 
             if (_data == Config::start)
             {
@@ -98,11 +102,11 @@ namespace hack
 
         void updatePayload(time_t now)
         {
-            std::optional<bool> x = receive(now);
-            if (!x)
+            std::optional<bool> bit = receive(now);
+            if (!bit)
                 return;
 
-            writeBit(_data, _bitIndex, *x);
+            writeBit(_data, _bitIndex, *bit);
 
             if (++_bitIndex == bit_size(_data))
                 pushPacket();
@@ -117,6 +121,7 @@ namespace hack
         {
             if (sample_timing < Config::half_bit_us + Config::window_us)
                 return std::nullopt;
+
             const time_t middle = sample_timing - Config::half_bit_us;
 
             std::optional<uint32_t> first = _prefixSumWindow.average(middle - Config::window_us, middle);
@@ -125,23 +130,26 @@ namespace hack
             if (!first || !second)
                 return std::nullopt;
 
-            if (!useBaseline)
-                return *second < *first;
+            if (useBaseline)
+            {
+                if (sample_timing < Config::bit_us + Config::threshold_window_us)
+                    return std::nullopt;
 
-            if (sample_timing < Config::bit_us + Config::threshold_window_us)
-                return std::nullopt;
-            const time_t begin = sample_timing - Config::bit_us;
+                const time_t begin = sample_timing - Config::bit_us;
 
-            std::optional<uint32_t> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
-            
-            if (!base)
-                return std::nullopt;
+                std::optional<uint32_t> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
 
-            bool x = level(*first, *base);
-            if (x == level(*second, *base))
-                return std::nullopt;
+                if (!base)
+                    return std::nullopt;
 
-            return x;
+                bool bit = level(*first, *base);
+                if (bit == level(*second, *base))
+                    return std::nullopt;
+
+                return bit;
+            }
+
+            return *second < *first;
         }
 
         std::optional<bool> receive(time_t now)
@@ -161,12 +169,16 @@ namespace hack
                 }
             }
 
-            std::optional<bool> x = decode(sampleUs, useBaseline);
-            if (!x)
+            std::optional<bool> bit = decode(sampleUs, useBaseline);
+            if (!bit)
+            {
+                if (!useBaseline)
+                    resetState();
                 return std::nullopt;
+            }
 
             _lastTime = sampleUs;
-            return *x;
+            return *bit;
         }
 
         void pushPacket()

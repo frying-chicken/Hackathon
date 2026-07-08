@@ -5,53 +5,65 @@
 #include <optional>
 
 #include "Config.hpp"
+#include "Utility.hpp"
 #include "hack/PrefixSumWindow.hpp"
 #include "hack/Sender.hpp"
 
-namespace sender_app {
-    hack::Sender<SenderPin, FrameSize> sender;
-    hack::PrefixSumWindow<hack::time_t, uint32_t, 256> prefixSumWindow;
+namespace sender_app
+{
+    inline hack::Sender<app::sender_pin, app::frame_size> sender;
+    inline std::array<uint8_t, app::frame_size> frame = {};
 
-    std::array<uint8_t, FrameSize> frame = {};
+    inline hack::PrefixSumWindow<hack::time_t, uint32_t, 256> bpm_window;
 
-    hack::time_t lastBeatUs = 0;
-    int bpm = 100;
-    hack::time_t periodUs = 60 * 1'000'000 / bpm;
-    int beat = 0;
+    inline uint8_t bpm = 100;
+    inline uint8_t beat_count = 0;
 
-    void setup() {
+    inline hack::Timer beat_timer;
+
+    inline void updateBpmFromAnalog()
+    {
+        const int value = analogRead(app::receiver_pin);
+        const hack::time_t now = micros();
+        bpm_window.push(now, value);
+
+        std::optional<uint32_t> average = bpm_window.average(now - 1'000, now);
+        if (!average)
+            return;
+
+        bpm = static_cast<uint8_t>(*average / 4);
+    }
+
+    inline void setup()
+    {
         sender.begin();
 
-        Serial.begin(SerialBaud);
+        Serial.begin(app::serial_baud);
         Serial.println("Start");
-        lastBeatUs = micros();
-
-        delay(100);
+        beat_timer.reset();
     }
 
-    void loop() {
+    inline void loop()
+    {
         sender.update();
 
-        const hack::time_t now = micros();
-        const int value = analogRead(A0);
-        prefixSumWindow.push(now, value);
-
-        if (now - lastBeatUs < periodUs) {
+        const hack::time_t periodUs = app::period(bpm);
+        if (!beat_timer.update(periodUs))
             return;
+
+        updateBpmFromAnalog();
+
+        frame[0] = 0;
+        for (hack::size_t i = 0; i < 8; ++i)
+        {
+            if (i < beat_count / 4)
+            {
+                hack::writeBit(frame[0], i, true);
+            }
         }
+        frame[1] = bpm;
 
-        frame.fill(0);
-        hack::writeBit(frame[0], ReceiverIdBit, true);
-        frame[1] = static_cast<uint8_t>(bpm);
-        frame[2] = static_cast<uint8_t>(beat++);
-
-        static_cast<void>(sender.operator()(frame));
-
-        std::optional<uint32_t> x = prefixSumWindow.average(0, now);
-        bpm = x ? static_cast<int>(*x / 4) : 120;
-        bpm = 120;
-        periodUs = 60 * 1'000'000 / bpm;
-        lastBeatUs = now;
+        if (sender(frame))
+            ++beat_count;
     }
 }
-

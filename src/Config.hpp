@@ -5,10 +5,14 @@
 
 #include "hack/Types.hpp"
 
-constexpr unsigned long SerialBaud = 250000;
-constexpr hack::size_t FrameSize = 256;
+namespace app
+{
+    constexpr unsigned long serial_baud = 250000;
+    constexpr hack::size_t frame_size = 2;
 
-constexpr uint8_t ReceiverPin = static_cast<uint8_t>(A0);
-constexpr uint8_t SenderPin = 2;
+    constexpr pin_size_t receiver_pin = A0;
+    constexpr pin_size_t sender_pin = 2;
 
-constexpr uint8_t ReceiverIdBit = 0;
+    // Bit index in payload byte0 used for receiver selection.
+    constexpr uint8_t machine_id_bit = 0;
+}

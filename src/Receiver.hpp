@@ -4,87 +4,74 @@
 #include <array>
 
 #include "Config.hpp"
+#include "Utility.hpp"
 #include "SheetMusic.hpp"
 #include "hack/Receiver.hpp"
 
-namespace receiver_app {
-    constexpr int kSheetRows = static_cast<int>(sheetMusic.size());
+namespace receiver_app
+{
+    inline hack::time_t beat_timing_us = 0;
+    inline hack::time_t beat_period_us = 0;
+    inline int beat_count = 0;
 
-    int noteIndex = 0;
-    int rowIndex = 0;
+    inline hack::size_t note_index = 0;
 
-    int beatIndex = 0;
-    hack::time_t beatTiming = 0;
-    hack::time_t periodUs = 0;
-
-    void onPacket(const std::array<uint8_t, FrameSize> &data)
+    inline void onPacketReceived(const std::array<uint8_t, app::frame_size> &data)
     {
-        if (!hack::readBit(data[0], ReceiverIdBit)) {
+        if (!hack::readBit(data[0], app::machine_id_bit))
             return;
-        }
-        if (data[1] == 0) {
-            return;
-        }
 
-        ++beatIndex;
-        beatTiming = micros();
-        periodUs = 60 * 1'000'000 / data[1];
+        beat_timing_us = micros();
+        beat_period_us = app::period(data[1]);
+        ++beat_count;
     }
 
-    hack::Receiver<ReceiverPin, FrameSize> receiver(onPacket);
-
-    void setup()
+    inline void emitNoteCsv(const NoteEvent &note)
     {
-        Serial.begin(SerialBaud);
-        receiver.begin();
+        Serial.print(note.amplitude, 0);
+        Serial.print(",");
+        Serial.print(note.pitch, 0);
+        Serial.print(",");
+        Serial.println(note.durationBeat * static_cast<float>(beat_period_us), 0);
     }
 
-    void loop()
+    inline hack::Receiver<app::receiver_pin, app::frame_size> receiver;
+
+    inline void setup()
+    {
+        Serial.begin(app::serial_baud);
+        receiver.begin(onPacketReceived);
+    }
+
+    inline void loop()
     {
         receiver.update();
 
-        if (rowIndex >= kSheetRows)
+        while (note_index < sheet_music.size())
         {
+            const NoteEvent &note = sheet_music[note_index];
+
+            const double beatOffset = note.startBeat - static_cast<double>(beat_count);
+            if (1.0 < beatOffset)
+                return;
+
+            if (beatOffset < 0.0)
+            {
+                ++note_index;
+                continue;
+            }
+
+            if (beat_period_us == 0)
+                return;
+
+            const double beatProgress = static_cast<double>(micros() - beat_timing_us) / static_cast<double>(beat_period_us);
+            if (beatOffset <= beatProgress)
+            {
+                emitNoteCsv(note);
+                ++note_index;
+                continue;
+            }
             return;
-        }
-
-        if (noteIndex >= kCols)
-        {
-            noteIndex = 0;
-            ++rowIndex;
-            return;
-        }
-
-        const NoteEvent note = sheetMusic[rowIndex][noteIndex];
-
-        if (note.isRest())
-        {
-            noteIndex = 0;
-            ++rowIndex;
-            return;
-        }
-
-        if (periodUs == 0)
-        {
-            return;
-        }
-
-        const double beatOffset = static_cast<double>(note.startBeat) - static_cast<double>(beatIndex);
-        if (beatOffset < 0.0 || 1.0 < beatOffset)
-        {
-            return;
-        }
-
-        const double beatProgress = static_cast<double>(micros() - beatTiming) / static_cast<double>(periodUs);
-        if (beatOffset < beatProgress)
-        {
-            Serial.print(note.amplitude, 0);
-            Serial.print(",");
-            Serial.print(note.pitch, 0);
-            Serial.print(",");
-            Serial.println(note.durationBeat * static_cast<float>(periodUs), 0);
-
-            ++noteIndex;
         }
     }
 }

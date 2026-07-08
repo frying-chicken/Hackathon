@@ -21,6 +21,15 @@ namespace receiver_app
         if (!hack::readBit(data[0], app::machine_id_bit))
             return;
 
+        if (data[1] == 0)
+        {
+            beat_timing_us = 0;
+            beat_period_us = 0;
+            beat_count = 0;
+            note_index = 0;
+            return;
+        }
+
         beat_timing_us = micros();
         beat_period_us = app::period(data[1]);
         ++beat_count;
@@ -49,6 +58,9 @@ namespace receiver_app
 
         while (note_index < sheet_music.size())
         {
+            if (beat_period_us == 0)
+                return;
+
             const NoteEvent &note = sheet_music[note_index];
 
             const double beatOffset = note.startBeat - static_cast<double>(beat_count);
@@ -60,9 +72,6 @@ namespace receiver_app
                 ++note_index;
                 continue;
             }
-
-            if (beat_period_us == 0)
-                return;
 
             const double beatProgress = static_cast<double>(micros() - beat_timing_us) / static_cast<double>(beat_period_us);
             if (beatOffset <= beatProgress)

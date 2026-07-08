@@ -2,6 +2,7 @@
 
 #include <Arduino.h>
 #include <array>
+#include <algorithm>
 #include <optional>
 
 #include "Config.hpp"
@@ -14,12 +15,14 @@ namespace sender_app
     inline hack::Sender<app::sender_pin, app::frame_size> sender;
     inline std::array<uint8_t, app::frame_size> frame = {};
 
-    inline hack::PrefixSumWindow<hack::time_t, uint32_t, 512> bpm_window;
+    inline hack::PrefixSumWindow<hack::time_t, uint32_t, 256> bpm_window;
 
     inline uint8_t bpm = 100;
     inline uint8_t beat_count = 0;
 
     inline hack::Timer beat_timer;
+
+    inline bool isBoot = false;
 
     inline void updateBpmFromAnalog()
     {
@@ -28,7 +31,7 @@ namespace sender_app
         if (!average)
             return;
 
-        bpm = static_cast<uint8_t>(*average * 4);
+        bpm = std::clamp(*average / 4, static_cast<uint32_t>(10), static_cast<uint32_t>(200));
     }
 
     inline void setup()
@@ -38,8 +41,6 @@ namespace sender_app
         Serial.begin(app::serial_baud);
         Serial.println("Start");
         beat_timer.reset();
-        
-        sender({255, 0}); 
     }
 
     inline void loop()
@@ -54,17 +55,25 @@ namespace sender_app
         if (!beat_timer.update(periodUs))
             return;
 
+        if (!isBoot)
+        {
+            isBoot = true;
+            frame[0] = 255;
+            frame[1] = 0;
+            sender(frame);
+            return;
+        }
+
         updateBpmFromAnalog();
 
         frame[0] = 0;
         for (hack::size_t i = 0; i < 8; ++i)
         {
-            if (i < beat_count / 4)
+            if (i < beat_count / 8)
             {
                 hack::writeBit(frame[0], i, true);
             }
         }
-        frame[0] = 255;
         frame[1] = bpm;
 
         if (sender(frame))

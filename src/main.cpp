@@ -28,7 +28,7 @@ void loop()
     if constexpr (mode == Mode::Sender)
     {
         sender_app::loop();
-    }
+    } 
     if constexpr (mode == Mode::Receiver)
     {
         receiver_app::loop();

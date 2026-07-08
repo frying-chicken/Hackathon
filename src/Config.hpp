@@ -13,5 +13,5 @@ namespace app
     constexpr pin_size_t receiver_pin = A0;
     constexpr pin_size_t sender_pin = 2;
 
-    constexpr uint8_t machine_id_bit = 4;
+    constexpr uint8_t machine_id_bit =;
 }

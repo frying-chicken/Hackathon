@@ -64,7 +64,6 @@ namespace hack
             }
         }
 
-        // Start sending one payload frame. Returns false while busy.
         bool operator()(const std::array<uint8_t, Capacity> &x)
         {
             if (_mode != Mode::Idle)

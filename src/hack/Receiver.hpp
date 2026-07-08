@@ -149,7 +149,7 @@ namespace hack
                 return bit;
             }
 
-            return *second < *first;
+            return *first < *second;
         }
 
         std::optional<bool> receive(time_t now)
@@ -164,12 +164,12 @@ namespace hack
 
                 if (isAfter(now))
                 {
-                    sampleUs = _lastTime + Config::bit_us;
+                    //sampleUs = _lastTime + Config::bit_us;
                     useBaseline = false;
                 }
             }
 
-            std::optional<bool> bit = decode(sampleUs, useBaseline);
+            std::optional<bool> bit = decode(sampleUs,true);// useBaseline);
             if (!bit)
             {
                 if (!useBaseline)

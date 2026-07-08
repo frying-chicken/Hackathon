@@ -9,7 +9,8 @@ enum class Mode
     Receiver
 };
 
-constexpr Mode mode = Mode::Sender;
+//constexpr Mode mode = Mode::Sender;
+constexpr Mode mode = Mode::Receiver;
 
 void setup()
 {

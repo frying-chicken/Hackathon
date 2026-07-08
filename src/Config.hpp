@@ -13,6 +13,5 @@ namespace app
     constexpr pin_size_t receiver_pin = A0;
     constexpr pin_size_t sender_pin = 2;
 
-    // Bit index in payload byte0 used for receiver selection.
-    constexpr uint8_t machine_id_bit = 0;
+    constexpr uint8_t machine_id_bit = 4;
 }

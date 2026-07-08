@@ -7,9 +7,9 @@
 
 namespace hack::Config
 {
-    constexpr time_t half_bit_us = 250;
-    constexpr time_t window_us = 100;
-    constexpr time_t margin_us = 80;
+    constexpr time_t half_bit_us = 500;
+    constexpr time_t window_us = 256;
+    constexpr time_t margin_us = 64;
 
     constexpr time_t bit_us = half_bit_us * 2;
 

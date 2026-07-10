@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-#include "Receiver.hpp"
-#include "Sender.hpp"
+#include "test/Receiver.hpp"
+#include "test/Sender.hpp"
 
 enum class Mode
 {
@@ -9,28 +9,20 @@ enum class Mode
     Receiver
 };
 
-//constexpr Mode mode = Mode::Sender;
-constexpr Mode mode = Mode::Receiver;
+constexpr Mode mode = Mode::Sender;
+//constexpr Mode mode = Mode::Receiver;
 
 void setup()
 {
     if constexpr (mode == Mode::Sender)
-    {
-        sender_app::setup();
-    }
+        sender_test::setup();
     if constexpr (mode == Mode::Receiver)
-    {
-        receiver_app::setup();
-    }
+        receiver_test::setup();
 }
 void loop()
 {
     if constexpr (mode == Mode::Sender)
-    {
-        sender_app::loop();
-    } 
+        sender_test::loop();
     if constexpr (mode == Mode::Receiver)
-    {
-        receiver_app::loop();
-    }
+        receiver_test::loop();
 }

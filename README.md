@@ -1,60 +1,98 @@
 # Hackathon
 
-Arduino UNO R4 WiFi 上で Manchester 風の簡易通信を行い、
-Sender から受けたテンポ情報で Receiver がノートイベントをシリアル出力するプロジェクトです。
+Arduino UNO R4 WiFi 上で、簡易 Manchester 通信によってテンポ情報を送受信し、
+受信側でノートイベントをシリアル CSV として出力するプロジェクトです。
 
-## 構成
+## 目的
 
-- main.ino: 実行モード切替 (Sender / Receiver)
-- src/Config.hpp: アプリ層設定値
-- src/Sender.hpp: アプリ層の送信処理
-- src/Receiver.hpp: アプリ層の受信処理とノートスケジューリング
-- src/SheetMusic.hpp: ノートイベント列
-- src/hack/*: 通信のコア実装 (符号化/復号/時系列窓)
+- Sender がテンポ情報をフレーム送信する
+- Receiver がフレームを復号し、テンポに同期して `sheet_music` を順次出力する
+- 出力先はシリアル (他プロセスで CSV として取り込みやすい形式)
 
-## モード切替
+## 動作概要
 
-main.ino 内の `constexpr Mode mode` を切り替えます。
+1. Sender が payload 2 byte のフレームを送信する
+2. Receiver は対象 machine bit が立ったフレームだけを処理する
+3. `bpm == 0` のフレームはリセット信号として扱う
+4. 通常フレーム受信後、Receiver は beat 進行に合わせてノートを CSV 出力する
 
-- Mode::Sender: フレームを送信
-- Mode::Receiver: フレームを受信してノート列を出力
+## 主要ファイル
 
-## フレーム仕様
+- `src/main.cpp`: 実行モード切替 (`Mode::Sender` / `Mode::Receiver`)
+- `src/Config.hpp`: アプリ層の設定値 (baud, pin, frame size, machine bit)
+- `src/Sender.hpp`: Sender 側の更新処理とフレーム生成
+- `src/Receiver.hpp`: Receiver 側の受信コールバックとノートスケジューリング
+- `src/SheetMusic.hpp`: ノート列 (`startBeat`, `durationBeat`, `pitch`, `amplitude`)
+- `src/hack/*`: 通信コア (エンコード/デコード、タイミング窓、リングバッファ)
 
-現在の payload は 2 byte です。
+通信コアの詳細は `src/hack/README.md` を参照してください。
 
-- byte0: 宛先 ID ビット (bit index = app::machine_id_bit)
-- byte1: bpm
+## 実行モード切替
 
-Receiver は byte0 の machine_id_bit が立っているフレームだけを処理します。
+`src/main.cpp` の `constexpr Mode mode` を切り替えます。
 
-## Receiver 出力仕様
+- `Mode::Sender`: フレーム送信
+- `Mode::Receiver`: フレーム受信と CSV 出力
 
-Receiver がノート開始時刻に達すると、シリアルへ次の CSV を出力します。
+## セットアップ
 
+前提:
+
+- PlatformIO が使える環境
+- ボード: Arduino UNO R4 WiFi
+
+主なコマンド:
+
+```bash
+platformio run
+platformio run --target upload
+platformio device monitor --baud 250000
+```
+
+## フレーム仕様 (アプリ層)
+
+payload は 2 byte です。
+
+- `byte0`: 宛先識別用ビット群 (`app::machine_id_bit` で判定)
+- `byte1`: bpm
+
+Receiver の受信時ポリシー:
+
+- `byte0` の該当ビットが立っていない場合は無視
+- `byte1 == 0` は reset 信号として扱い、拍情報と楽譜進行を初期化
+- それ以外は有効 bpm として拍タイミングを更新
+
+## Receiver のシリアル出力
+
+ノート開始タイミングに達すると、以下フォーマットで 1 行出力します。
+
+```text
 amplitude,pitch,duration_us
+```
 
-duration_us は `durationBeat * periodUs` で計算されます。
+- `duration_us = durationBeat * beat_period_us`
 
-## 命名規則とコーディング規約
+## チューニング項目
 
-- app 層の定数は lower_snake_case (`serial_baud`, `frame_size` など)
-- アプリ層の namespace 変数・関数は `inline` を付与し、ヘッダ定義時の ODR 問題を回避
-- 予約識別子を避けるため、namespace スコープで先頭 `_` の名前は使用しない
-- 送受信コア (`src/hack`) の公開 API 名は既存互換を優先 (`readBit`, `writeBit` など)
-- 早期 return を基本にし、周期処理 (`loop`) は浅いネストを保つ
+受信安定性の調整は主に `src/hack/Config.hpp` で行います。
 
-## デバッグ手順
+- `half_bit_us`: 伝送速度の主設定
+- `margin_us`: 受信側のジッタ許容幅
+- `threshold_window_us`: baseline 評価窓
+- `buffer_size`: 受信窓の保持量
 
-1. Sender 側で `Start` が出ることを確認
-2. Receiver 側で packet を受信後、CSV 出力が始まることを確認
-3. 受信が不安定な場合は `src/hack/Config.hpp` の `half_bit_us`, `margin_us` を調整
-4. テンポが不安定な場合は `src/Sender.hpp` の BPM 平滑窓 (`bpm_window`) を確認
-5. ノート取りこぼしがある場合は `src/Receiver.hpp` の beat/offset 判定ログを追加して確認
+テンポ算出の挙動確認は `src/Sender.hpp` の `bpm_window` を参照してください。
 
-## 今回の保守ポイント
+## トラブルシュート
 
-- app 設定定数を lower_snake_case に統一
-- `Sender.hpp`, `Receiver.hpp` の namespace スコープ定義を `inline` 化し ODR リスクを低減
-- Receiver の note 進行ループを改善し、処理遅延時の取りこぼし耐性を向上
-- `hack::Receiver::begin()` で入力ピン設定・内部状態リセットを明示
+1. Sender 起動時に `Start` がシリアルへ出るか確認
+2. Receiver で受信後に CSV が出るか確認
+3. 受信が不安定なら `src/hack/Config.hpp` のタイミング定数を調整
+4. テンポが揺れるなら Sender 側アナログ入力と平滑窓を確認
+5. ノート取りこぼし時は `src/Receiver.hpp` の beat 判定周辺にログを追加
+
+## 実装メモ
+
+- app 層の定数は lower_snake_case を使用
+- ヘッダ定義の app モジュール状態/関数は `inline` で ODR リスクを抑制
+- Receiver の payload callback は payload 完了時のみ呼び出す設計

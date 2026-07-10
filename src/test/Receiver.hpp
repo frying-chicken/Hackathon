@@ -9,17 +9,16 @@ namespace receiver_test
 {
     inline void onPacketReceived(const std::array<uint8_t, 256> &data)
     {
-        for (int i = 0; i < 256; ++i)
-        {
-            Serial.println(data[i]);
-        }
+        digitalWrite(2, HIGH);
     }
 
     inline hack::Receiver<A0, 256> receiver;
 
     inline void setup()
     {
-        Serial.begin(250000);
+        pinMode(2, OUTPUT);
+        digitalWrite(2, LOW);
+
         receiver.begin(onPacketReceived);
     }
 

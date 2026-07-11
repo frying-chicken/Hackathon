@@ -14,6 +14,7 @@ namespace hack
     template <pin_size_t PIN, size_t Capacity>
     class Sender
     {
+        static_assert(0 < Capacity);
         enum class Mode
         {
             Idle,
@@ -64,6 +65,8 @@ namespace hack
             }
         }
 
+        explicit operator bool() const { return _mode != Mode::Idle; }
+
         bool operator()(const std::array<uint8_t, Capacity> &x)
         {
             if (_mode != Mode::Idle)
@@ -71,13 +74,13 @@ namespace hack
             _mode = Mode::Calibration;
             _buffer = x;
             _byteIndex = 0;
-            _bitIndex = 0;
             _halfPhase = false;
+            _bitIndex = 0;
             return true;
         }
 
     private:
-        void updateIdle() { digitalWrite(PIN, LOW); }
+        void updateIdle() const { digitalWrite(PIN, LOW); }
 
         void updateCalibration()
         {
@@ -106,8 +109,8 @@ namespace hack
             {
                 _mode = Mode::Idle;
                 _byteIndex = 0;
-                _bitIndex = 0;
                 _halfPhase = false;
+                _bitIndex = 0;
             }
         }
 

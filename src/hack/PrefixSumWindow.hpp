@@ -34,23 +34,20 @@ namespace hack
             _data.push_back({std::numeric_limits<Key>::lowest(), T{}});
         }
 
-        void push(Key key, T value)
-        {
-            _data.push_back({key, _data.back().second + value});
-        }
+        void push(Key key, T value) { _data.push_back({key, _data.back().second + value}); }
 
         std::optional<T> average(Key begin, Key end) const
         {
             if (empty() || !(begin < end))
                 return std::nullopt;
 
-            const size_t begin_index = lower_bound(1, _data.size(), begin);
-            const size_t end_index = lower_bound(begin_index, _data.size(), end);
+            const size_t beginIndex = lower_bound(1, _data.size(), begin);
+            const size_t endIndex = lower_bound(beginIndex, _data.size(), end);
 
-            if (begin_index == end_index)
+            if (beginIndex == endIndex)
                 return std::nullopt;
 
-            return (_data[end_index - 1].second - _data[begin_index - 1].second) / (end_index - begin_index);
+            return (_data[endIndex - 1].second - _data[beginIndex - 1].second) / (endIndex - beginIndex);
         }
 
     private:

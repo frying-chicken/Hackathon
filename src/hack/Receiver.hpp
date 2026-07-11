@@ -37,7 +37,7 @@ namespace hack
         time_t _lastTime = 0;
 
     public:
-        void begin(void (*callback)(const std::array<uint8_t, Capacity> &))
+        void begin(void (*callback)(const std::array<uint8_t, Capacity> &) = nullptr)
         {
             _callback = callback ? callback : noCallback;
             _prefixSumWindow.reset();
@@ -67,7 +67,7 @@ namespace hack
     private:
         void updateIdle(time_t now)
         {
-            std::optional<bool> bit = receive(now);
+            Bit bit = detectPreambleBit(now);
             if (!bit)
                 return;
 
@@ -79,14 +79,13 @@ namespace hack
 
             if (++_bitIndex == Config::preamble_required)
             {
-                _mode = Mode::Start;
-                _bitIndex = 0;
+                enterMode(Mode::Start);
             }
         }
 
         void updateStart(time_t now)
         {
-            std::optional<bool> bit = receive(now);
+            Bit bit = receiveBit(now);
             if (!bit)
                 return;
 
@@ -94,69 +93,54 @@ namespace hack
 
             if (_data == Config::start)
             {
-                _mode = Mode::Payload;
-                _data = 0;
-                _bitIndex = 0;
+                enterMode(Mode::Payload);
             }
         }
 
         void updatePayload(time_t now)
         {
-            std::optional<bool> bit = receive(now);
+            Bit bit = receiveBit(now);
             if (!bit)
                 return;
 
             writeBit(_data, _bitIndex, *bit);
 
             if (++_bitIndex == bit_size(_data))
-                pushPacket();
-        }
-
-        bool isBefore(time_t now) const { return now - _lastTime < Config::bit_us - Config::margin_us; }
-        bool isAfter(time_t now) const { return Config::bit_us + Config::margin_us < now - _lastTime; }
-
-        static bool level(int x, int base) { return base < x; }
-
-        std::optional<bool> decode(time_t sample_timing, bool useBaseline) const
-        {
-            if (sample_timing < Config::half_bit_us + Config::window_us)
-                return std::nullopt;
-
-            const time_t middle = sample_timing - Config::half_bit_us;
-
-            std::optional<uint32_t> first = _prefixSumWindow.average(middle - Config::window_us, middle);
-            std::optional<uint32_t> second = _prefixSumWindow.average(middle, middle + Config::window_us);
-
-            if (!first || !second)
-                return std::nullopt;
-
-            if (useBaseline)
             {
-                if (sample_timing < Config::bit_us + Config::threshold_window_us)
-                    return std::nullopt;
+                _buffer[_packetSize] = _data;
 
-                const time_t begin = sample_timing - Config::bit_us;
+                _data = 0;
+                _bitIndex = 0;
 
-                std::optional<uint32_t> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
-
-                if (!base)
-                    return std::nullopt;
-
-                bool bit = level(*first, *base);
-                if (bit == level(*second, *base))
-                    return std::nullopt;
-
-                return bit;
+                if (++_packetSize == _buffer.size())
+                {
+                    _callback(_buffer);
+                    resetState();
+                }
             }
-
-            return *first < *second;
         }
 
-        std::optional<bool> receive(time_t now)
+        Bit decode(time_t sampleTiming)
         {
-            bool useBaseline = true;
-            time_t sampleUs = now;
+            std::optional<std::pair<uint32_t, uint32_t>> window = readWindow(sampleTiming);
+            if (!window)
+                return std::nullopt;
 
+            std::optional<uint32_t> base = readBaseline(sampleTiming);
+            if (!base)
+                return std::nullopt;
+
+            bool bit = level(window->first, *base);
+            if (bit == level(window->second, *base))
+                return std::nullopt;
+
+            _lastTime = sampleTiming;
+
+            return bit;
+        }
+
+        Bit detectPreambleBit(time_t now)
+        {
             if (_lastTime != 0)
             {
                 if (isBefore(now))
@@ -164,43 +148,81 @@ namespace hack
 
                 if (isAfter(now))
                 {
-                    //sampleUs = _lastTime + Config::bit_us;
-                    useBaseline = false;
+                    resetState();
+                    return std::nullopt;
                 }
             }
 
-            std::optional<bool> bit = decode(sampleUs,true);// useBaseline);
-            if (!bit)
-            {
-                if (!useBaseline)
-                    resetState();
-                return std::nullopt;
-            }
-
-            _lastTime = sampleUs;
-            return *bit;
+            return decode(now);
         }
 
-        void pushPacket()
+        Bit receiveBit(time_t now)
         {
-            _buffer[_packetSize] = _data;
+            if (isBefore(now))
+                return std::nullopt;
 
+            if (isAfter(now))
+            {
+                auto window = readWindow(_lastTime + Config::bit_us);
+                if (!window)
+                {
+                    resetState();
+                    return std::nullopt;
+                }
+                _lastTime += Config::bit_us;
+                return window->second < window->first;
+            }
+
+            return decode(now);
+        }
+
+        bool isBefore(time_t now) const { return now - _lastTime < Config::bit_us - Config::margin_us; }
+        bool isAfter(time_t now) const { return Config::bit_us + Config::margin_us < now - _lastTime; }
+
+        static bool level(int x, int base) { return base < x; }
+
+        std::optional<std::pair<uint32_t, uint32_t>> readWindow(time_t sampleTiming) const
+        {
+            if (sampleTiming <= Config::half_bit_us)
+                return std::nullopt;
+            const time_t middle = sampleTiming - Config::half_bit_us;
+
+            if (middle <= Config::window_us)
+                return std::nullopt;
+            std::optional<uint32_t> first = _prefixSumWindow.average(middle - Config::window_us, middle);
+            std::optional<uint32_t> second = _prefixSumWindow.average(middle, middle + Config::window_us);
+            if (!first || !second)
+                return std::nullopt;
+
+            return std::make_pair(*first, *second);
+        }
+
+        std::optional<uint32_t> readBaseline(time_t sampleTiming) const
+        {
+            if (sampleTiming <= Config::bit_us)
+                return std::nullopt;
+            const time_t begin = sampleTiming - Config::bit_us;
+
+            if (begin <= Config::threshold_window_us)
+                return std::nullopt;
+            std::optional<uint32_t> base = _prefixSumWindow.average(begin - Config::threshold_window_us, begin);
+            if (!base)
+                return std::nullopt;
+
+            return *base;
+        }
+
+        void enterMode(Mode mode)
+        {
+            _mode = mode;
             _data = 0;
             _bitIndex = 0;
-
-            if (++_packetSize == _buffer.size())
-            {
-                _callback(_buffer);
-                resetState();
-            }
+            _packetSize = 0;
         }
 
         void resetState()
         {
-            _mode = Mode::Idle;
-            _data = 0;
-            _bitIndex = 0;
-            _packetSize = 0;
+            enterMode(Mode::Idle);
             _lastTime = 0;
         }
     };

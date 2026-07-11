@@ -4,11 +4,13 @@
 #include <array>
 
 #include "Config.hpp"
-#include "Utility.hpp"
 #include "SheetMusic.hpp"
-#include "hack/Receiver.hpp"
+#include "Utility.hpp"
 
-namespace receiver_app
+#include "hack/Receiver.hpp"
+#include "hack/Types.hpp"
+
+namespace receiver
 {
     inline hack::time_t beat_timing_us = 0;
     inline hack::time_t beat_period_us = 0;
@@ -49,6 +51,7 @@ namespace receiver_app
     inline void setup()
     {
         Serial.begin(app::serial_baud);
+        Serial.println("Receiver");
         receiver.begin(onPacketReceived);
     }
 

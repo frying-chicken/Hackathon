@@ -18,21 +18,28 @@ Arduino UNO R4 WiFi 上で、簡易 Manchester 通信によってテンポ情報
 
 ## 主要ファイル
 
-- `src/main.cpp`: 実行モード切替 (`Mode::Sender` / `Mode::Receiver`)
+- `src/main.cpp`: ビルド対象切替 (`HACK_MODE` / `HACK_TARGET` マクロ)
 - `src/Config.hpp`: アプリ層の設定値 (baud, pin, frame size, machine bit)
 - `src/Sender.hpp`: Sender 側の更新処理とフレーム生成
 - `src/Receiver.hpp`: Receiver 側の受信コールバックとノートスケジューリング
 - `src/SheetMusic.hpp`: ノート列 (`startBeat`, `durationBeat`, `pitch`, `amplitude`)
+- `src/test_0/*`, `src/test_1/*`: 通信コアの単体検証用ハーネス (本番の `app` モードとは独立)
 - `src/hack/*`: 通信コア (エンコード/デコード、タイミング窓、リングバッファ)
 
 通信コアの詳細は `src/hack/README.md` を参照してください。
 
 ## 実行モード切替
 
-`src/main.cpp` の `constexpr Mode mode` を切り替えます。
+`src/main.cpp` 冒頭の 2 つのマクロを書き換えてビルド対象を選びます。選択されなかった側のヘッダは `#if` で除外されるため、未使用の Sender/Receiver インスタンスが RAM/Flash を消費することはありません。
 
-- `Mode::Sender`: フレーム送信
-- `Mode::Receiver`: フレーム受信と CSV 出力
+```cpp
+#define HACK_MODE HACK_MODE_TEST_0      // HACK_MODE_APP / HACK_MODE_TEST_0 / HACK_MODE_TEST_1
+#define HACK_TARGET HACK_TARGET_RECEIVER // HACK_TARGET_SENDER / HACK_TARGET_RECEIVER
+```
+
+- `HACK_MODE_APP`: 本番アプリ (`src/Sender.hpp` / `src/Receiver.hpp`)
+- `HACK_MODE_TEST_0`, `HACK_MODE_TEST_1`: `src/hack` 通信コアの単体検証用ハーネス
+- `HACK_TARGET_SENDER` / `HACK_TARGET_RECEIVER`: 送信側/受信側のどちらとして書き込むか
 
 ## セットアップ
 
@@ -82,17 +89,3 @@ amplitude,pitch,duration_us
 - `buffer_size`: 受信窓の保持量
 
 テンポ算出の挙動確認は `src/Sender.hpp` の `bpm_window` を参照してください。
-
-## トラブルシュート
-
-1. Sender 起動時に `Start` がシリアルへ出るか確認
-2. Receiver で受信後に CSV が出るか確認
-3. 受信が不安定なら `src/hack/Config.hpp` のタイミング定数を調整
-4. テンポが揺れるなら Sender 側アナログ入力と平滑窓を確認
-5. ノート取りこぼし時は `src/Receiver.hpp` の beat 判定周辺にログを追加
-
-## 実装メモ
-
-- app 層の定数は lower_snake_case を使用
-- ヘッダ定義の app モジュール状態/関数は `inline` で ODR リスクを抑制
-- Receiver の payload callback は payload 完了時のみ呼び出す設計

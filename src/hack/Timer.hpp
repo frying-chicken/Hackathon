@@ -24,9 +24,8 @@ namespace hack
 
             _last += interval;
             if (interval <= now - _last)
-            {
                 _last = now;
-            }
+
             return true;
         }
     };

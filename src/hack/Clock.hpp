@@ -11,9 +11,6 @@ namespace hack
         static_assert(0 < Interval);
 
     public:
-        bool update()
-        {
-            return Timer::update(Interval);
-        }
+        bool update() { return Timer::update(Interval); }
     };
 }

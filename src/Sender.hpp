@@ -7,15 +7,19 @@
 
 #include "Config.hpp"
 #include "Utility.hpp"
+
+#include "hack/Config.hpp"
 #include "hack/PrefixSumWindow.hpp"
 #include "hack/Sender.hpp"
+#include "hack/Timer.hpp"
+#include "hack/Types.hpp"
 
-namespace sender_app
+namespace sender
 {
     inline hack::Sender<app::sender_pin, app::frame_size> sender;
     inline std::array<uint8_t, app::frame_size> frame = {};
 
-    inline hack::PrefixSumWindow<hack::time_t, uint32_t, 256> bpm_window;
+    inline hack::PrefixSumWindow<hack::time_t, uint32_t, 128> bpm_window;
 
     inline uint8_t bpm = 100;
     inline uint8_t beat_count = 0;
@@ -27,19 +31,18 @@ namespace sender_app
     inline void updateBpmFromAnalog()
     {
         const hack::time_t now = micros();
-        std::optional<uint32_t> average = bpm_window.average(now - 1000, now);
+        std::optional<uint32_t> average = bpm_window.average(now - hack::Config::bit_us, now);
         if (!average)
             return;
 
-        bpm = std::clamp(*average / 4, static_cast<uint32_t>(10), static_cast<uint32_t>(200));
+        bpm = std::clamp(*average / 4, static_cast<uint32_t>(50), static_cast<uint32_t>(200));
     }
 
     inline void setup()
     {
         sender.begin();
-
         Serial.begin(app::serial_baud);
-        Serial.println("Start");
+        Serial.println("Sender");
         beat_timer.reset();
     }
 

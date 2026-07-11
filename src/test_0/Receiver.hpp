@@ -20,6 +20,9 @@ namespace receiver_test_0
                 digitalWrite(LED_BUILTIN, HIGH);
                 return;
             }
+        
+        delayMicroseconds(100);
+        digitalWrite(2, LOW);
         Serial.println("success");
     }
 

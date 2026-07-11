@@ -65,7 +65,7 @@ namespace sender_test_0
                 waiting = false;
             }
         }
-        if (clock.update())
+        if (!waiting && clock.update())
         {
             sender(frame);
             waiting = true;

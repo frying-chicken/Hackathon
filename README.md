@@ -89,3 +89,15 @@ amplitude,pitch,duration_us
 - `buffer_size`: 受信窓の保持量
 
 テンポ算出の挙動確認は `src/Sender.hpp` の `bpm_window` を参照してください。
+
+# 使用機材
+
+LED部
+- LED https://akizukidenshi.com/catalog/g/g106409/ 
+    - 2.6V 70mA
+- 50Ω抵抗
+
+フォトトランジスタ部
+- フォトトランジスタ https://akizukidenshi.com/catalog/g/g102325/
+    - レンタル
+- 33KΩ抵抗

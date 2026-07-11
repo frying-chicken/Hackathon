@@ -18,7 +18,12 @@ namespace sender_test_1
         Serial.begin(250000);
         Serial.println("Sender Test");
 
+        for (size_t i = 0; i < frame.size(); ++i)
+            frame[i] = i;
+
         sender.begin();
+
+        clock.reset();
     }
 
     inline void loop()
@@ -27,9 +32,6 @@ namespace sender_test_1
 
         if (clock.update())
         {
-            for (size_t i = 0; i < frame.size(); ++i)
-                frame[i] = i;
-
             sender(frame);
         }
     }

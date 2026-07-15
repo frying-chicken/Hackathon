@@ -53,6 +53,9 @@ namespace sender_test_0
                     ? times[1] - times[0]
                     : times[0] - times[1];
                 total_diff += diff;
+                Serial.print("Diff: ");
+                Serial.println(diff);
+                delay(100);
 
                 if (++run_count == num_runs)
                 {

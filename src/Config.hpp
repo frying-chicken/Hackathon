@@ -18,5 +18,5 @@ namespace app
     constexpr pin_size_t sender_pin = 2;
 
     // payload byte0 内で、この Receiver 宛てかどうかを示すビット位置 (マスクではなくビット番号)
-    constexpr uint8_t machine_id_bit = 0;
+    constexpr uint8_t machine_id_bit = 4;
 }
